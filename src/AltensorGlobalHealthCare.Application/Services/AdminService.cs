@@ -1,4 +1,4 @@
-﻿using AltensorGlobalHealthCare.Application.Common;
+using AltensorGlobalHealthCare.Application.Common;
 using AltensorGlobalHealthCare.Application.Common.Exceptions;
 using AltensorGlobalHealthCare.Application.DTOs.Admin;
 using AltensorGlobalHealthCare.Application.DTOs.Catalog;
@@ -24,7 +24,11 @@ public class AdminService : IAdminService
 
     public async Task<DashboardSummaryDto> GetDashboardStatsAsync(CancellationToken cancellationToken = default)
     {
-        var inquiries = await _unitOfWork.Inquiries.GetAllAsync(cancellationToken);
+        var inquiries = await _unitOfWork.Inquiries.GetAllAsync(
+            cancellationToken,
+            i => i.MedicalService!,
+            i => i.Documents,
+            i => i.Offers);
         var activeInquiries = inquiries.Count(i => i.Status != InquiryStatus.Closed && i.Status != InquiryStatus.Cancelled);
         var patientsCount = await _unitOfWork.PatientProfiles.CountAsync(null, cancellationToken);
         var clinicsCount = await _unitOfWork.Clinics.CountAsync(null, cancellationToken);
@@ -52,6 +56,8 @@ public class AdminService : IAdminService
                 ServiceTitle = i.MedicalService?.TitleAz,
                 Status = i.Status,
                 StatusText = i.Status.ToString(),
+                DocumentsCount = i.Documents.Count,
+                OffersCount = i.Offers.Count,
                 CreatedAtUtc = i.CreatedAtUtc
             }).ToList()
         };
@@ -60,7 +66,7 @@ public class AdminService : IAdminService
     // --- Clinics ---
     public async Task<IReadOnlyList<ClinicSummaryDto>> GetAllClinicsAsync(CancellationToken cancellationToken = default)
     {
-        var clinics = await _unitOfWork.Clinics.GetAllAsync(cancellationToken);
+        var clinics = await _unitOfWork.Clinics.GetAllAsync(cancellationToken, c => c.Doctors, c => c.ClinicServices);
         return clinics.OrderBy(c => c.DisplayOrder).Select(c => new ClinicSummaryDto
         {
             Id = c.Id,
@@ -233,8 +239,17 @@ public class AdminService : IAdminService
 
     public async Task<DoctorDto> UpdateDoctorAsync(Guid id, UpdateDoctorRequestDto request, CancellationToken cancellationToken = default)
     {
-        var doctor = await _unitOfWork.Doctors.GetByIdAsync(id, cancellationToken);
+        var doctor = await _unitOfWork.Doctors.FindAsync(d => d.Id == id, cancellationToken, d => d.Clinic);
         if (doctor == null) throw NotFoundException.For<Doctor>(id);
+
+        var clinicName = doctor.Clinic?.Name ?? string.Empty;
+        if (request.ClinicId != Guid.Empty && request.ClinicId != doctor.ClinicId)
+        {
+            var newClinic = await _unitOfWork.Clinics.GetByIdAsync(request.ClinicId, cancellationToken);
+            if (newClinic == null) throw NotFoundException.For<Clinic>(request.ClinicId);
+            doctor.ClinicId = newClinic.Id;
+            clinicName = newClinic.Name;
+        }
 
         doctor.FullName = request.FullName.Trim();
         doctor.TitleAz = request.TitleAz?.Trim();
@@ -258,6 +273,7 @@ public class AdminService : IAdminService
         {
             Id = doctor.Id,
             ClinicId = doctor.ClinicId,
+            ClinicName = clinicName,
             FullName = doctor.FullName,
             Title = doctor.TitleAz,
             Specialization = doctor.SpecializationAz,

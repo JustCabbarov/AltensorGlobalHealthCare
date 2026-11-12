@@ -1,4 +1,4 @@
-﻿using AltensorGlobalHealthCare.Application.Common.Exceptions;
+using AltensorGlobalHealthCare.Application.Common.Exceptions;
 using AltensorGlobalHealthCare.Application.Common.Localization;
 using AltensorGlobalHealthCare.Application.DTOs.Catalog;
 using AltensorGlobalHealthCare.Application.DTOs.Content;
@@ -117,7 +117,11 @@ public class PublicPortalService : IPublicPortalService
 
     public async Task<IReadOnlyList<ClinicSummaryDto>> GetClinicsAsync(string? lang, CancellationToken cancellationToken = default)
     {
-        var clinics = await _unitOfWork.Clinics.GetListAsync(c => c.IsActive, cancellationToken);
+        var clinics = await _unitOfWork.Clinics.GetListAsync(
+            c => c.IsActive,
+            cancellationToken,
+            c => c.Doctors,
+            c => c.ClinicServices);
         return clinics.OrderBy(c => c.DisplayOrder).Select(c => new ClinicSummaryDto
         {
             Id = c.Id,
@@ -188,12 +192,15 @@ public class PublicPortalService : IPublicPortalService
 
     public async Task<IReadOnlyList<DoctorDto>> GetDoctorsAsync(string? lang, CancellationToken cancellationToken = default)
     {
-        var doctors = await _unitOfWork.Doctors.GetListAsync(d => d.IsActive && d.Clinic.IsActive, cancellationToken);
+        var doctors = await _unitOfWork.Doctors.GetListAsync(
+            d => d.IsActive && d.Clinic != null && d.Clinic.IsActive,
+            cancellationToken,
+            d => d.Clinic);
         return doctors.OrderBy(d => d.DisplayOrder).Select(d => new DoctorDto
         {
             Id = d.Id,
             ClinicId = d.ClinicId,
-            ClinicName = d.Clinic.Name,
+            ClinicName = d.Clinic?.Name ?? string.Empty,
             FullName = d.FullName,
             Title = LocalizedText.Resolve(d.TitleAz, d.TitleEn, d.TitleRu, lang),
             Specialization = LocalizedText.Resolve(d.SpecializationAz, d.SpecializationEn, d.SpecializationRu, lang),
@@ -205,7 +212,10 @@ public class PublicPortalService : IPublicPortalService
 
     public async Task<DoctorDto?> GetDoctorByIdAsync(Guid id, string? lang, CancellationToken cancellationToken = default)
     {
-        var doctor = await _unitOfWork.Doctors.FindAsync(d => d.Id == id && d.IsActive, cancellationToken);
+        var doctor = await _unitOfWork.Doctors.FindAsync(
+            d => d.Id == id && d.IsActive,
+            cancellationToken,
+            d => d.Clinic);
         if (doctor == null) return null;
 
         return new DoctorDto
@@ -228,7 +238,9 @@ public class PublicPortalService : IPublicPortalService
             r => r.IsPublished &&
                  (!clinicId.HasValue || r.ClinicId == clinicId) &&
                  (!doctorId.HasValue || r.DoctorId == doctorId),
-            cancellationToken);
+            cancellationToken,
+            r => r.Clinic!,
+            r => r.Doctor!);
 
         return reviews.OrderByDescending(r => r.CreatedAtUtc).Select(r => new ReviewDto
         {

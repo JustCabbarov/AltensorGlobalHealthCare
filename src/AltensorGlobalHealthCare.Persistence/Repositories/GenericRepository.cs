@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using AltensorGlobalHealthCare.Application.Interfaces.Repositories;
 using AltensorGlobalHealthCare.Domain.Common;
@@ -27,19 +27,42 @@ public class GenericRepository<T> : IGenericRepository<T> where T : BaseEntity
         return await DbSet.IgnoreQueryFilters().FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
     }
 
-    public virtual async Task<T?> FindAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+    public virtual async Task<T?> FindAsync(
+        Expression<Func<T, bool>> predicate,
+        CancellationToken cancellationToken = default,
+        params Expression<Func<T, object>>[] includes)
     {
-        return await DbSet.FirstOrDefaultAsync(predicate, cancellationToken);
+        IQueryable<T> query = DbSet;
+        foreach (var include in includes)
+        {
+            query = query.Include(include);
+        }
+        return await query.FirstOrDefaultAsync(predicate, cancellationToken);
     }
 
-    public virtual async Task<IReadOnlyList<T>> GetAllAsync(CancellationToken cancellationToken = default)
+    public virtual async Task<IReadOnlyList<T>> GetAllAsync(
+        CancellationToken cancellationToken = default,
+        params Expression<Func<T, object>>[] includes)
     {
-        return await DbSet.ToListAsync(cancellationToken);
+        IQueryable<T> query = DbSet;
+        foreach (var include in includes)
+        {
+            query = query.Include(include);
+        }
+        return await query.ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<IReadOnlyList<T>> GetListAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+    public virtual async Task<IReadOnlyList<T>> GetListAsync(
+        Expression<Func<T, bool>> predicate,
+        CancellationToken cancellationToken = default,
+        params Expression<Func<T, object>>[] includes)
     {
-        return await DbSet.Where(predicate).ToListAsync(cancellationToken);
+        IQueryable<T> query = DbSet;
+        foreach (var include in includes)
+        {
+            query = query.Include(include);
+        }
+        return await query.Where(predicate).ToListAsync(cancellationToken);
     }
 
     public virtual IQueryable<T> Query()

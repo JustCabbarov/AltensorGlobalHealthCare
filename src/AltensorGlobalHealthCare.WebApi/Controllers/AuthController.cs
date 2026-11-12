@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AltensorGlobalHealthCare.Application.Common;
+using AltensorGlobalHealthCare.Application.Common.Exceptions;
 using AltensorGlobalHealthCare.Application.DTOs.Auth;
 using AltensorGlobalHealthCare.Application.Interfaces.Services;
 
@@ -119,6 +120,21 @@ public class AuthController : ControllerBase
     {
         var result = await _authService.GetCurrentUserAsync(User, cancellationToken);
         return Ok(ApiResponse<CurrentUserDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Cari istifadəçinin profil məlumatlarını yeniləmək
+    /// </summary>
+    [HttpPut("me")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<CurrentUserDto>>> UpdateCurrentUser(
+        [FromBody] UpdateProfileRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.UserId
+            ?? throw new UnauthorizedException("İstifadəçi müəyyən edilmədi.");
+        var result = await _authService.UpdateProfileAsync(userId, request, cancellationToken);
+        return Ok(ApiResponse<CurrentUserDto>.Ok(result, "Profil məlumatları yeniləndi."));
     }
 }
 

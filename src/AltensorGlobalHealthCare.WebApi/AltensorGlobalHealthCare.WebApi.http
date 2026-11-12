@@ -1,4 +1,4 @@
-﻿@baseUrl = http://localhost:5000/api
+@baseUrl = http://localhost:5000/api
 @lang = az
 
 ### 1. PUBLIC: Bütün kateqoriyalar (Azərbaycan dilində)
@@ -129,9 +129,38 @@ Content-Type: application/json
 GET {{baseUrl}}/auth/me
 Authorization: Bearer {{patientToken}}
 
+### 17b. AUTH: Cari İstifadəçi Profilinin Yenilənməsi
+PUT {{baseUrl}}/auth/me
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Ali",
+  "lastName": "Cabbarov",
+  "phoneNumber": "+994501234567",
+  "country": "Azərbaycan",
+  "dateOfBirth": "1995-05-15T00:00:00Z",
+  "medicalNotes": "Penisilin allergiyası var",
+  "preferredLanguage": "az"
+}
+
 ### --------------------------------------------------------
 ### PATIENT FLOW: MÜRACİƏT VƏ TƏKLİF
 ### --------------------------------------------------------
+
+### 17c. PATIENT: Pasient Profilini Yeniləmək
+PUT {{baseUrl}}/patient/profile
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Ali",
+  "lastName": "Cabbarov",
+  "phoneNumber": "+994501234567",
+  "country": "Azərbaycan",
+  "dateOfBirth": "1995-05-15T00:00:00Z",
+  "medicalNotes": "Penisilin allergiyası var"
+}
 
 ### 18. PATIENT: Yeni Tibbi Müraciət Göndərilməsi (Symptoms, Travel needs)
 # @name createInquiry

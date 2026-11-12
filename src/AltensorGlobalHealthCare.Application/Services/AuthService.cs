@@ -1,11 +1,13 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
+using AltensorGlobalHealthCare.Application.Common;
 using AltensorGlobalHealthCare.Application.Common.Exceptions;
 using AltensorGlobalHealthCare.Application.DTOs.Auth;
 using AltensorGlobalHealthCare.Application.Interfaces.Services;
 using AltensorGlobalHealthCare.Application.Interfaces.UnitOfWork;
+using AltensorGlobalHealthCare.Application.Validators;
 using AltensorGlobalHealthCare.Domain.Entities;
 using AltensorGlobalHealthCare.Domain.Enums;
 
@@ -40,6 +42,8 @@ public class AuthService : IAuthService
             throw new ConflictException("Bu e-poçt ünvanı ilə artıq qeydiyyatdan keçilib.", "EMAIL_ALREADY_EXISTS");
         }
 
+        var normalizedDob = NormalizeUtc(request.DateOfBirth);
+
         var user = new ApplicationUser
         {
             UserName = email,
@@ -48,7 +52,7 @@ public class AuthService : IAuthService
             LastName = request.LastName.Trim(),
             PhoneNumber = request.PhoneNumber.Trim(),
             Country = request.Country?.Trim(),
-            DateOfBirth = request.DateOfBirth,
+            DateOfBirth = normalizedDob,
             EmailConfirmed = false
         };
 
@@ -67,7 +71,7 @@ public class AuthService : IAuthService
         {
             UserId = user.Id,
             Country = request.Country?.Trim(),
-            DateOfBirth = request.DateOfBirth
+            DateOfBirth = normalizedDob
         };
         await _unitOfWork.PatientProfiles.AddAsync(profile, cancellationToken);
 
@@ -149,7 +153,7 @@ public class AuthService : IAuthService
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             ExpiresAt = expiresAt,
-            User = MapToCurrentUserDto(user, roles, null)
+            User = await BuildCurrentUserDtoAsync(user, roles, cancellationToken)
         };
     }
 
@@ -215,15 +219,12 @@ public class AuthService : IAuthService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Check if doctor profile
-        var doctor = await _unitOfWork.Doctors.FindAsync(d => d.UserId == user.Id, cancellationToken);
-
         return new LoginResponseDto
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             ExpiresAt = expiresAt,
-            User = MapToCurrentUserDto(user, roles, doctor?.ClinicId)
+            User = await BuildCurrentUserDtoAsync(user, roles, cancellationToken)
         };
     }
 
@@ -272,14 +273,12 @@ public class AuthService : IAuthService
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        var doctor = await _unitOfWork.Doctors.FindAsync(d => d.UserId == user.Id, cancellationToken);
-
         return new LoginResponseDto
         {
             AccessToken = newAccessToken,
             RefreshToken = newRefreshToken,
             ExpiresAt = expiresAt,
-            User = MapToCurrentUserDto(user, roles, doctor?.ClinicId)
+            User = await BuildCurrentUserDtoAsync(user, roles, cancellationToken)
         };
     }
 
@@ -389,12 +388,120 @@ public class AuthService : IAuthService
         }
 
         var roles = await _userManager.GetRolesAsync(user);
-        var doctor = await _unitOfWork.Doctors.FindAsync(d => d.UserId == user.Id, cancellationToken);
-
-        return MapToCurrentUserDto(user, roles, doctor?.ClinicId);
+        return await BuildCurrentUserDtoAsync(user, roles, cancellationToken);
     }
 
-    private static CurrentUserDto MapToCurrentUserDto(ApplicationUser user, IList<string> roles, Guid? clinicId)
+    public async Task<CurrentUserDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var validator = new UpdateProfileRequestDtoValidator();
+        var validationResult = await validator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .Select(e => new ErrorDetail(e.PropertyName, e.ErrorMessage, e.ErrorCode))
+                .ToList();
+            throw new ValidationException(errors);
+        }
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+        {
+            throw new NotFoundException("İstifadəçi tapılmadı.", "USER_NOT_FOUND");
+        }
+
+        if (request.FirstName != null)
+            user.FirstName = request.FirstName.Trim();
+
+        if (request.LastName != null)
+            user.LastName = request.LastName.Trim();
+
+        if (request.PhoneNumber != null)
+            user.PhoneNumber = request.PhoneNumber.Trim();
+
+        string? normalizedCountry = null;
+        if (request.Country != null)
+        {
+            normalizedCountry = string.IsNullOrWhiteSpace(request.Country) ? null : request.Country.Trim();
+            user.Country = normalizedCountry;
+        }
+
+        var normalizedDob = NormalizeUtc(request.DateOfBirth);
+        if (request.DateOfBirth.HasValue)
+        {
+            user.DateOfBirth = normalizedDob;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.PreferredLanguage))
+        {
+            user.PreferredLanguage = request.PreferredLanguage.Trim().ToLowerInvariant();
+        }
+
+        user.UpdatedAtUtc = DateTime.UtcNow;
+
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            var errors = updateResult.Errors.Select(e => new ErrorDetail(null, e.Description, e.Code)).ToList();
+            throw new BadRequestException("Profil yenilənə bilmədi.", "PROFILE_UPDATE_FAILED", errors);
+        }
+
+        var roles = await _userManager.GetRolesAsync(user);
+        var profile = await _unitOfWork.PatientProfiles.FindAsync(p => p.UserId == user.Id, cancellationToken);
+
+        if (profile == null && (roles.Contains("Patient") || request.MedicalNotes != null))
+        {
+            profile = new PatientProfile
+            {
+                UserId = user.Id,
+                Country = user.Country,
+                DateOfBirth = user.DateOfBirth,
+                MedicalNotes = string.IsNullOrWhiteSpace(request.MedicalNotes) ? null : request.MedicalNotes.Trim()
+            };
+            await _unitOfWork.PatientProfiles.AddAsync(profile, cancellationToken);
+        }
+        else if (profile != null)
+        {
+            if (request.Country != null)
+                profile.Country = normalizedCountry;
+
+            if (request.DateOfBirth.HasValue)
+                profile.DateOfBirth = normalizedDob;
+
+            if (request.MedicalNotes != null)
+                profile.MedicalNotes = string.IsNullOrWhiteSpace(request.MedicalNotes) ? null : request.MedicalNotes.Trim();
+
+            profile.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return await BuildCurrentUserDtoAsync(user, roles, cancellationToken);
+    }
+
+    private async Task<CurrentUserDto> BuildCurrentUserDtoAsync(
+        ApplicationUser user,
+        IList<string> roles,
+        CancellationToken cancellationToken)
+    {
+        var doctor = await _unitOfWork.Doctors.FindAsync(d => d.UserId == user.Id, cancellationToken);
+        var patientProfile = await _unitOfWork.PatientProfiles.FindAsync(p => p.UserId == user.Id, cancellationToken);
+
+        return MapToCurrentUserDto(user, roles, doctor?.ClinicId, patientProfile?.MedicalNotes);
+    }
+
+    private static DateTime? NormalizeUtc(DateTime? value)
+    {
+        if (!value.HasValue) return null;
+        return value.Value.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+            : value.Value.ToUniversalTime();
+    }
+
+    private static CurrentUserDto MapToCurrentUserDto(
+        ApplicationUser user,
+        IList<string> roles,
+        Guid? clinicId,
+        string? medicalNotes)
     {
         return new CurrentUserDto
         {
@@ -406,6 +513,7 @@ public class AuthService : IAuthService
             PhoneNumber = user.PhoneNumber ?? string.Empty,
             Country = user.Country,
             DateOfBirth = user.DateOfBirth,
+            MedicalNotes = medicalNotes,
             PreferredLanguage = user.PreferredLanguage,
             Roles = roles,
             ClinicId = clinicId

@@ -1,4 +1,4 @@
-﻿using AltensorGlobalHealthCare.Application.Common;
+using AltensorGlobalHealthCare.Application.Common;
 using AltensorGlobalHealthCare.Application.Common.Exceptions;
 using AltensorGlobalHealthCare.Application.DTOs.Admin;
 using AltensorGlobalHealthCare.Application.DTOs.Inquiries;
@@ -45,7 +45,10 @@ public class CoordinatorService : ICoordinatorService
                   i.Patient.FirstName.ToLower().Contains(term) ||
                   i.Patient.LastName.ToLower().Contains(term) ||
                   i.Symptoms.ToLower().Contains(term)),
-            cancellationToken);
+            cancellationToken,
+            i => i.MedicalService!,
+            i => i.Documents,
+            i => i.Offers);
 
         var total = all.Count;
         var paged = all

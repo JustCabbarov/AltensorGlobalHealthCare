@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AltensorGlobalHealthCare.Application.Common;
 using AltensorGlobalHealthCare.Application.Common.Exceptions;
+using AltensorGlobalHealthCare.Application.DTOs.Auth;
 using AltensorGlobalHealthCare.Application.DTOs.Inquiries;
 using AltensorGlobalHealthCare.Application.DTOs.Offers;
 using AltensorGlobalHealthCare.Application.Interfaces.Services;
@@ -17,17 +18,20 @@ namespace AltensorGlobalHealthCare.WebApi.Controllers;
 public class PatientController : ControllerBase
 {
     private readonly IPatientService _patientService;
+    private readonly IAuthService _authService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IFileStorageService _fileStorage;
     private readonly IUnitOfWork _unitOfWork;
 
     public PatientController(
         IPatientService patientService,
+        IAuthService authService,
         ICurrentUserService currentUserService,
         IFileStorageService fileStorage,
         IUnitOfWork unitOfWork)
     {
         _patientService = patientService;
+        _authService = authService;
         _currentUserService = currentUserService;
         _fileStorage = fileStorage;
         _unitOfWork = unitOfWork;
@@ -35,6 +39,28 @@ public class PatientController : ControllerBase
 
     private Guid CurrentUserId => _currentUserService.UserId
         ?? throw new UnauthorizedException("İstifadəçi müəyyən edilmədi.");
+
+    /// <summary>
+    /// Pasientin profil məlumatlarını əldə etmək
+    /// </summary>
+    [HttpGet("profile")]
+    public async Task<ActionResult<ApiResponse<CurrentUserDto>>> GetProfile(CancellationToken cancellationToken)
+    {
+        var result = await _authService.GetCurrentUserAsync(User, cancellationToken);
+        return Ok(ApiResponse<CurrentUserDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Pasientin profil məlumatlarını və tibbi qeydlərini yeniləmək
+    /// </summary>
+    [HttpPut("profile")]
+    public async Task<ActionResult<ApiResponse<CurrentUserDto>>> UpdateProfile(
+        [FromBody] UpdateProfileRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.UpdateProfileAsync(CurrentUserId, request, cancellationToken);
+        return Ok(ApiResponse<CurrentUserDto>.Ok(result, "Profil məlumatları yeniləndi."));
+    }
 
     /// <summary>
     /// Yeni tibbi konsultasiya və müalicə müraciətinin göndərilməsi (ZagrebMed /submitinquiry analoqu)

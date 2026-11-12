@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using AltensorGlobalHealthCare.Application.DTOs.Auth;
 using AltensorGlobalHealthCare.Domain.Entities;
 
@@ -31,6 +31,7 @@ public interface IAuthService
     Task<string> ForgotPasswordAsync(ForgotPasswordRequestDto request, CancellationToken cancellationToken = default);
     Task<string> ResetPasswordAsync(ResetPasswordRequestDto request, CancellationToken cancellationToken = default);
     Task<CurrentUserDto> GetCurrentUserAsync(ClaimsPrincipal principal, CancellationToken cancellationToken = default);
+    Task<CurrentUserDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken cancellationToken = default);
 }
 
 public interface IFileStorageService

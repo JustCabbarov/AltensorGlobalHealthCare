@@ -1,4 +1,4 @@
-﻿namespace AltensorGlobalHealthCare.Application.DTOs.Auth;
+namespace AltensorGlobalHealthCare.Application.DTOs.Auth;
 
 public class RegisterRequestDto
 {
@@ -65,8 +65,20 @@ public class CurrentUserDto
     public string PhoneNumber { get; set; } = string.Empty;
     public string? Country { get; set; }
     public DateTime? DateOfBirth { get; set; }
+    public string? MedicalNotes { get; set; }
     public string PreferredLanguage { get; set; } = "az";
     public IList<string> Roles { get; set; } = new List<string>();
     public Guid? ClinicId { get; set; }
+}
+
+public class UpdateProfileRequestDto
+{
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Country { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string? MedicalNotes { get; set; }
+    public string? PreferredLanguage { get; set; }
 }
 

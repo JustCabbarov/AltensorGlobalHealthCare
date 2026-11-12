@@ -1,4 +1,4 @@
-﻿using AltensorGlobalHealthCare.Application.Common;
+using AltensorGlobalHealthCare.Application.Common;
 using AltensorGlobalHealthCare.Application.Common.Exceptions;
 using AltensorGlobalHealthCare.Application.DTOs.Inquiries;
 using AltensorGlobalHealthCare.Application.DTOs.Offers;
@@ -39,7 +39,10 @@ public class DoctorService : IDoctorService
 
         var all = await _unitOfWork.Inquiries.GetListAsync(
             i => i.AssignedDoctorId == doctor.Id && (!status.HasValue || i.Status == status),
-            cancellationToken);
+            cancellationToken,
+            i => i.MedicalService!,
+            i => i.Documents,
+            i => i.Offers);
 
         var total = all.Count;
         var paged = all
