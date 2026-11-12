@@ -1,0 +1,35 @@
+## .NET & Visual Studio
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+.vscode/
+
+## Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## Runtime uploads and confidential medical files
+**/wwwroot/uploads/*
+!**/wwwroot/uploads/.gitkeep
+**/App_Data/medical-docs/*
+!**/App_Data/medical-docs/.gitkeep
+
+## OS files
+.DS_Store
+Thumbs.db

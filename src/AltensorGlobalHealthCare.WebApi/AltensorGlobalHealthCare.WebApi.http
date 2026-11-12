@@ -1,0 +1,264 @@
+﻿@baseUrl = http://localhost:5000/api
+@lang = az
+
+### 1. PUBLIC: Bütün kateqoriyalar (Azərbaycan dilində)
+GET {{baseUrl}}/public/categories?lang={{lang}}
+Accept: application/json
+
+### 2. PUBLIC: Kateqoriyalar (İngilis dilində)
+GET {{baseUrl}}/public/categories?lang=en
+Accept: application/json
+
+### 3. PUBLIC: Konkret prosedur (Diz əməliyyatı və qiymətlər)
+GET {{baseUrl}}/public/services/total-knee-replacement?lang={{lang}}
+Accept: application/json
+
+### 4. PUBLIC: Ən çox axtarılan xidmətlər
+GET {{baseUrl}}/public/services/most-searched?lang={{lang}}
+Accept: application/json
+
+### 5. PUBLIC: Paketlər (All-in-one)
+GET {{baseUrl}}/public/packages?lang={{lang}}
+Accept: application/json
+
+### 6. PUBLIC: Klinikalar siyahısı
+GET {{baseUrl}}/public/clinics?lang={{lang}}
+Accept: application/json
+
+### 7. PUBLIC: Klinika profili (Medikol)
+GET {{baseUrl}}/public/clinics/medikol?lang={{lang}}
+Accept: application/json
+
+### 8. PUBLIC: Qlobal axtarış (Knee)
+GET {{baseUrl}}/public/search?q=knee&lang=en
+Accept: application/json
+
+### 9. PUBLIC: CMS Səhifəsi (Haqqımızda)
+GET {{baseUrl}}/public/pages/about-us?lang={{lang}}
+Accept: application/json
+
+### 10. PUBLIC: Əlaqə formasının göndərilməsi
+POST {{baseUrl}}/public/contact
+Content-Type: application/json
+
+{
+  "name": "Seymur Məmmədov",
+  "email": "seymur@example.com",
+  "phone": "+994501112233",
+  "subject": "Diz oynağı əməliyyatı barədə sual",
+  "message": "Salam, dizimdə şiddətli ağrılar var, Zaqrebdə əməliyyat qiymətləri ilə maraqlanıram."
+}
+
+### --------------------------------------------------------
+### AUTHENTICATION & REGISTRATION
+### --------------------------------------------------------
+
+### 11. AUTH: Yeni Pasient Qeydiyyatı (6 rəqəmli kod emailə göndərilir)
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Ali",
+  "lastName": "Cabbarov",
+  "phoneNumber": "+994501234567",
+  "email": "licabbarov1@gmail.com",
+  "password": "Password123!",
+  "acceptTerms": true,
+  "country": "Azərbaycan"
+}
+
+### 12. AUTH: Emailə gələn kodun təsdiqi (Demo üçün DB və ya Log-dan koda baxın)
+POST {{baseUrl}}/auth/confirm-email
+Content-Type: application/json
+
+{
+  "email": "licabbarov1@gmail.com",
+  "code": "123456"
+}
+
+### 13. AUTH: Pasient Girişi
+# @name patientLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "licabbarov1@gmail.com",
+  "password": "Password123!"
+}
+
+@patientToken = {{patientLogin.response.body.data.accessToken}}
+
+### 14. AUTH: Baş Koordinator Girişi (Ivana)
+# @name coordinatorLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "coordinator@altensorglobalhealthcare.com",
+  "password": "Coordinator123!"
+}
+
+@coordinatorToken = {{coordinatorLogin.response.body.data.accessToken}}
+
+### 15. AUTH: Sistem İnzibatçısı Girişi (Admin)
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@altensorglobalhealthcare.com",
+  "password": "Admin123!"
+}
+
+@adminToken = {{adminLogin.response.body.data.accessToken}}
+
+### 16. AUTH: Həkim Girişi (Dr. Marko Kovač)
+# @name doctorLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "dr.marko@altensorglobalhealthcare.com",
+  "password": "Doctor123!"
+}
+
+@doctorToken = {{doctorLogin.response.body.data.accessToken}}
+
+### 17. AUTH: Cari İstifadəçi Məlumatı
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{patientToken}}
+
+### --------------------------------------------------------
+### PATIENT FLOW: MÜRACİƏT VƏ TƏKLİF
+### --------------------------------------------------------
+
+### 18. PATIENT: Yeni Tibbi Müraciət Göndərilməsi (Symptoms, Travel needs)
+# @name createInquiry
+POST {{baseUrl}}/patient/inquiries
+Authorization: Bearer {{patientToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="Symptoms"
+
+Sağ dizimdə 6 aydır kəskin artroz və yeriməkdə çətinlik var.
+--boundary
+Content-Disposition: form-data; name="Description"
+
+Zaqrebdə total diz protezi əməliyyatı etdirmək istəyirəm.
+--boundary
+Content-Disposition: form-data; name="PreferredTimeframe"
+
+Gələn ayın əvvəli
+--boundary
+Content-Disposition: form-data; name="NeedsAccommodation"
+
+true
+--boundary
+Content-Disposition: form-data; name="NeedsAirportTransfer"
+
+true
+--boundary
+Content-Disposition: form-data; name="NeedsAirplaneTicket"
+
+true
+--boundary--
+
+@inquiryId = {{createInquiry.response.body.data.id}}
+
+### 19. PATIENT: Mənim müraciətlərim
+GET {{baseUrl}}/patient/inquiries
+Authorization: Bearer {{patientToken}}
+
+### 20. COORDINATOR: Bütün pasient müraciətlərini görmək
+GET {{baseUrl}}/coordinator/inquiries
+Authorization: Bearer {{coordinatorToken}}
+
+### 21. COORDINATOR: Müraciəti Həkimə təyin etmək
+POST {{baseUrl}}/coordinator/inquiries/{{inquiryId}}/assign
+Authorization: Bearer {{coordinatorToken}}
+Content-Type: application/json
+
+{
+  "doctorId": "c0000000-0000-0000-0000-000000000001"
+}
+
+### 22. COORDINATOR / HƏKİM: Pasient üçün Rəsmi Qiymət Təklifi (Offer) hazırlamaq
+# @name createOffer
+POST {{baseUrl}}/coordinator/inquiries/{{inquiryId}}/offers
+Authorization: Bearer {{coordinatorToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="ClinicId"
+
+c0000000-0000-0000-0000-000000000001
+--boundary
+Content-Disposition: form-data; name="Title"
+
+Diz Oynağı Protezi və Reabilitasiya Təklifi
+--boundary
+Content-Disposition: form-data; name="Text"
+
+İsveçrə istehsalı Zimmer Biomet protezi, 5 gün xəstəxana, otel və transferlər daxil.
+--boundary
+Content-Disposition: form-data; name="MedicalTreatmentPrice"
+
+6800.00
+--boundary
+Content-Disposition: form-data; name="AccommodationPrice"
+
+850.00
+--boundary
+Content-Disposition: form-data; name="AirportTransferPrice"
+
+120.00
+--boundary
+Content-Disposition: form-data; name="AirplaneTicketPrice"
+
+380.00
+--boundary
+Content-Disposition: form-data; name="Currency"
+
+EUR
+--boundary
+Content-Disposition: form-data; name="ExpiresInDays"
+
+14
+--boundary--
+
+@offerId = {{createOffer.response.body.data.id}}
+
+### 23. COORDINATOR: Təklifi pasientə göndərmək
+POST {{baseUrl}}/coordinator/offers/{{offerId}}/send
+Authorization: Bearer {{coordinatorToken}}
+
+### 24. PATIENT: Müraciətim üzrə gələn təkliflərə baxmaq
+GET {{baseUrl}}/patient/inquiries/{{inquiryId}}/offers
+Authorization: Bearer {{patientToken}}
+
+### 25. PATIENT: Təklifi Qəbul etmək
+POST {{baseUrl}}/patient/offers/{{offerId}}/accept
+Authorization: Bearer {{patientToken}}
+
+### 26. PATIENT / COORDINATOR: Müraciət daxili çat mesajı göndərmək
+POST {{baseUrl}}/patient/inquiries/{{inquiryId}}/messages
+Authorization: Bearer {{patientToken}}
+Content-Type: application/json
+
+{
+  "body": "Təklifi qəbul etdim, uçuş tarixlərini dəqiqləşdirmək istərdim."
+}
+
+### 27. PATIENT: Çat yazışmalarını oxumaq
+GET {{baseUrl}}/patient/inquiries/{{inquiryId}}/messages
+Authorization: Bearer {{patientToken}}
+
+### --------------------------------------------------------
+### ADMIN DASHBOARD
+### --------------------------------------------------------
+
+### 28. ADMIN: Sistem İdarəetmə Paneli Statistikası
+GET {{baseUrl}}/admin/dashboard
+Authorization: Bearer {{adminToken}}
