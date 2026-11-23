@@ -114,8 +114,8 @@ public class ServiceCategoryRepository : GenericRepository<ServiceCategory>, ISe
 
         return await query
             .Include(c => c.Parent)
-            .Include(c => c.SubCategories.Where(sub => sub.IsActive).OrderBy(sub => sub.DisplayOrder))
-                .ThenInclude(sub => sub.Services.Where(s => s.IsActive).OrderBy(s => s.DisplayOrder))
+            .Include(c => c.SubCategories.Where(sub => sub.IsActive))
+                .ThenInclude(sub => sub.Services.Where(s => s.IsActive))
                     .ThenInclude(s => s.ClinicServices.Where(cs => cs.IsActive))
                         .ThenInclude(cs => cs.Clinic)
             .Include(c => c.SubCategories.Where(sub => sub.IsActive))
@@ -131,7 +131,7 @@ public class ServiceCategoryRepository : GenericRepository<ServiceCategory>, ISe
                 .ThenInclude(sub => sub.Services.Where(s => s.IsActive))
                     .ThenInclude(s => s.Reviews.Where(r => r.IsPublished))
                         .ThenInclude(r => r.Doctor)
-            .Include(c => c.Services.Where(s => s.IsActive).OrderBy(s => s.DisplayOrder))
+            .Include(c => c.Services.Where(s => s.IsActive))
                 .ThenInclude(s => s.ClinicServices.Where(cs => cs.IsActive))
                     .ThenInclude(cs => cs.Clinic)
             .Include(c => c.Services.Where(s => s.IsActive))
@@ -165,7 +165,7 @@ public class MedicalServiceRepository : GenericRepository<MedicalService>, IMedi
                 .ThenInclude(dm => dm.Doctor)
                     .ThenInclude(d => d.Clinic)
             .Include(s => s.Faqs.Where(f => f.IsActive).OrderBy(f => f.DisplayOrder))
-            .Include(s => s.Reviews.Where(r => r.IsPublished).OrderByDescending(r => r.CreatedAtUtc))
+            .Include(s => s.Reviews.Where(r => r.IsPublished))
                 .ThenInclude(r => r.Clinic)
             .Include(s => s.Reviews.Where(r => r.IsPublished))
                 .ThenInclude(r => r.Doctor)
