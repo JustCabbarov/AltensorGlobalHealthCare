@@ -1,4 +1,4 @@
-﻿using AltensorGlobalHealthCare.Application.Common;
+using AltensorGlobalHealthCare.Application.Common;
 using AltensorGlobalHealthCare.Application.DTOs.Admin;
 using AltensorGlobalHealthCare.Application.DTOs.Catalog;
 using AltensorGlobalHealthCare.Application.DTOs.Content;
@@ -10,8 +10,9 @@ namespace AltensorGlobalHealthCare.Application.Interfaces.Services;
 
 public interface IPublicPortalService
 {
-    Task<IReadOnlyList<CategoryDto>> GetCategoriesAsync(string? lang, CancellationToken cancellationToken = default);
-    Task<CategoryDto?> GetCategoryBySlugAsync(string slug, string? lang, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CategoryDto>> GetCategoriesAsync(string? lang, bool headerOnly = false, bool homeOnly = false, CancellationToken cancellationToken = default);
+    Task<CategoryDetailDto?> GetCategoryBySlugAsync(string slug, string? lang, CancellationToken cancellationToken = default);
+    Task<CategoryDetailDto?> GetSubCategoryBySlugAsync(string categorySlug, string subSlug, string? lang, CancellationToken cancellationToken = default);
     Task<MedicalServiceDetailDto?> GetServiceBySlugAsync(string slug, string? lang, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MedicalServiceSummaryDto>> GetMostSearchedServicesAsync(string? lang, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TreatmentPackageDto>> GetPackagesAsync(string? lang, CancellationToken cancellationToken = default);
@@ -23,6 +24,9 @@ public interface IPublicPortalService
     Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(Guid? clinicId, Guid? doctorId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MedicalServiceSummaryDto>> SearchAsync(string query, string? lang, CancellationToken cancellationToken = default);
     Task<CmsPageDto?> GetCmsPageAsync(string slug, string? lang, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CmsPageMenuItemDto>> GetCmsPagesMenuAsync(string? parentSlug, string? lang, CancellationToken cancellationToken = default);
+    Task<AboutUsDto> GetAboutUsAsync(string? lang, CancellationToken cancellationToken = default);
+    Task<HowItWorksDto> GetHowItWorksAsync(string? lang, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BlogPostSummaryDto>> GetBlogPostsAsync(string? lang, CancellationToken cancellationToken = default);
     Task<BlogPostDetailDto?> GetBlogPostBySlugAsync(string slug, string? lang, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<FaqItemDto>> GetFaqItemsAsync(string? lang, CancellationToken cancellationToken = default);
@@ -92,14 +96,21 @@ public interface IAdminService
     Task<string> UpdateDoctorPhotoAsync(Guid id, FileUploadDto file, CancellationToken cancellationToken = default);
 
     // Categories & Services
+    Task<IReadOnlyList<AdminCategoryDto>> GetAllCategoriesAsync(CancellationToken cancellationToken = default);
     Task<CategoryDto> CreateCategoryAsync(CreateCategoryRequestDto request, CancellationToken cancellationToken = default);
     Task<CategoryDto> UpdateCategoryAsync(Guid id, UpdateCategoryRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteCategoryAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<AdminMedicalServiceSummaryDto>> GetAllServicesAsync(Guid? categoryId = null, string? search = null, CancellationToken cancellationToken = default);
+    Task<AdminMedicalServiceDetailDto> GetServiceByIdForAdminAsync(Guid id, CancellationToken cancellationToken = default);
     Task<MedicalServiceDetailDto> CreateServiceAsync(CreateMedicalServiceRequestDto request, CancellationToken cancellationToken = default);
     Task<MedicalServiceDetailDto> UpdateServiceAsync(Guid id, UpdateMedicalServiceRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteServiceAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<string> UpdateServiceHeroImageAsync(Guid id, FileUploadDto file, CancellationToken cancellationToken = default);
+    Task<string> UpdateServicePromoBannerAsync(Guid id, FileUploadDto file, CancellationToken cancellationToken = default);
     Task SetClinicPriceAsync(SetClinicPriceRequestDto request, CancellationToken cancellationToken = default);
+    Task DeleteClinicPriceAsync(Guid serviceId, Guid clinicId, CancellationToken cancellationToken = default);
+    Task SetServiceDoctorsAsync(Guid serviceId, SetServiceDoctorsRequestDto request, CancellationToken cancellationToken = default);
 
     // Packages
     Task<TreatmentPackageDto> CreatePackageAsync(CreateTreatmentPackageRequestDto request, CancellationToken cancellationToken = default);
@@ -107,11 +118,36 @@ public interface IAdminService
     Task DeletePackageAsync(Guid id, CancellationToken cancellationToken = default);
     Task<string> UpdatePackageCoverAsync(Guid id, FileUploadDto file, CancellationToken cancellationToken = default);
 
-    // Content
-    Task<CmsPageDto> UpsertCmsPageAsync(CmsPageDto request, CancellationToken cancellationToken = default);
+    // Content & About Us
+    Task<IReadOnlyList<AdminCmsPageDto>> GetAllCmsPagesAsync(CancellationToken cancellationToken = default);
+    Task<AdminCmsPageDto> GetCmsPageBySlugForAdminAsync(string slug, CancellationToken cancellationToken = default);
+    Task<AdminCmsPageDto> UpsertCmsPageAsync(UpsertCmsPageRequestDto request, CancellationToken cancellationToken = default);
+    Task DeleteCmsPageAsync(string slug, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AdminAboutPillarDto>> GetAllAboutPillarsAsync(CancellationToken cancellationToken = default);
+    Task<AdminAboutPillarDto> CreateAboutPillarAsync(UpsertAboutPillarRequestDto request, CancellationToken cancellationToken = default);
+    Task<AdminAboutPillarDto> UpdateAboutPillarAsync(Guid id, UpsertAboutPillarRequestDto request, CancellationToken cancellationToken = default);
+    Task DeleteAboutPillarAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AdminTeamMemberDto>> GetAllTeamMembersAsync(CancellationToken cancellationToken = default);
+    Task<AdminTeamMemberDto> CreateTeamMemberAsync(UpsertTeamMemberRequestDto request, CancellationToken cancellationToken = default);
+    Task<AdminTeamMemberDto> UpdateTeamMemberAsync(Guid id, UpsertTeamMemberRequestDto request, CancellationToken cancellationToken = default);
+    Task DeleteTeamMemberAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<string> UpdateTeamMemberPhotoAsync(Guid id, FileUploadDto file, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AdminHowItWorksStepDto>> GetAllHowItWorksStepsAsync(CancellationToken cancellationToken = default);
+    Task<AdminHowItWorksStepDto> CreateHowItWorksStepAsync(UpsertHowItWorksStepRequestDto request, CancellationToken cancellationToken = default);
+    Task<AdminHowItWorksStepDto> UpdateHowItWorksStepAsync(Guid id, UpsertHowItWorksStepRequestDto request, CancellationToken cancellationToken = default);
+    Task DeleteHowItWorksStepAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ContactMessageDto>> GetContactMessagesAsync(bool? isHandled = null, CancellationToken cancellationToken = default);
+    Task<ContactMessageDto> HandleContactMessageAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task<BlogPostDetailDto> CreateBlogPostAsync(BlogPostDetailDto request, CancellationToken cancellationToken = default);
     Task DeleteBlogPostAsync(string slug, CancellationToken cancellationToken = default);
-    Task<FaqItemDto> CreateFaqAsync(FaqItemDto request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AdminFaqItemDto>> GetAllFaqsAsync(Guid? medicalServiceId = null, CancellationToken cancellationToken = default);
+    Task<AdminFaqItemDto> CreateFaqAsync(UpsertFaqRequestDto request, CancellationToken cancellationToken = default);
+    Task<AdminFaqItemDto> UpdateFaqAsync(Guid id, UpsertFaqRequestDto request, CancellationToken cancellationToken = default);
     Task DeleteFaqAsync(Guid id, CancellationToken cancellationToken = default);
     Task<PartnerDto> CreatePartnerAsync(PartnerDto request, CancellationToken cancellationToken = default);
     Task DeletePartnerAsync(Guid id, CancellationToken cancellationToken = default);

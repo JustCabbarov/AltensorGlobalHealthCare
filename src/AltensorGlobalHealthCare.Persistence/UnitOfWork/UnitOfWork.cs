@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using AltensorGlobalHealthCare.Application.Interfaces.Repositories;
 using AltensorGlobalHealthCare.Application.Interfaces.UnitOfWork;
 using AltensorGlobalHealthCare.Domain.Common;
@@ -37,6 +37,7 @@ public class UnitOfWork : IUnitOfWork
 
     public IGenericRepository<Doctor> Doctors => Repository<Doctor>();
     public IGenericRepository<ClinicService> ClinicServices => Repository<ClinicService>();
+    public IGenericRepository<DoctorMedicalService> DoctorMedicalServices => Repository<DoctorMedicalService>();
     public IGenericRepository<TreatmentPackage> TreatmentPackages => Repository<TreatmentPackage>();
     public IGenericRepository<InquiryDocument> InquiryDocuments => Repository<InquiryDocument>();
     public IGenericRepository<InquiryMessage> InquiryMessages => Repository<InquiryMessage>();
@@ -48,6 +49,9 @@ public class UnitOfWork : IUnitOfWork
     public IGenericRepository<CmsPage> CmsPages => Repository<CmsPage>();
     public IGenericRepository<BlogPost> BlogPosts => Repository<BlogPost>();
     public IGenericRepository<FaqItem> FaqItems => Repository<FaqItem>();
+    public IGenericRepository<AboutPillar> AboutPillars => Repository<AboutPillar>();
+    public IGenericRepository<TeamMember> TeamMembers => Repository<TeamMember>();
+    public IGenericRepository<HowItWorksStep> HowItWorksSteps => Repository<HowItWorksStep>();
     public IGenericRepository<Partner> Partners => Repository<Partner>();
     public IGenericRepository<ContactMessage> ContactMessages => Repository<ContactMessage>();
     public IGenericRepository<NewsletterSubscriber> NewsletterSubscribers => Repository<NewsletterSubscriber>();

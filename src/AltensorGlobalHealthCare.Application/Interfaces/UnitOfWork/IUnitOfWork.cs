@@ -1,4 +1,4 @@
-﻿using AltensorGlobalHealthCare.Application.Interfaces.Repositories;
+using AltensorGlobalHealthCare.Application.Interfaces.Repositories;
 using AltensorGlobalHealthCare.Domain.Common;
 using AltensorGlobalHealthCare.Domain.Entities;
 
@@ -14,6 +14,7 @@ public interface IUnitOfWork : IDisposable
 
     IGenericRepository<Doctor> Doctors { get; }
     IGenericRepository<ClinicService> ClinicServices { get; }
+    IGenericRepository<DoctorMedicalService> DoctorMedicalServices { get; }
     IGenericRepository<TreatmentPackage> TreatmentPackages { get; }
     IGenericRepository<InquiryDocument> InquiryDocuments { get; }
     IGenericRepository<InquiryMessage> InquiryMessages { get; }
@@ -25,6 +26,9 @@ public interface IUnitOfWork : IDisposable
     IGenericRepository<CmsPage> CmsPages { get; }
     IGenericRepository<BlogPost> BlogPosts { get; }
     IGenericRepository<FaqItem> FaqItems { get; }
+    IGenericRepository<AboutPillar> AboutPillars { get; }
+    IGenericRepository<TeamMember> TeamMembers { get; }
+    IGenericRepository<HowItWorksStep> HowItWorksSteps { get; }
     IGenericRepository<Partner> Partners { get; }
     IGenericRepository<ContactMessage> ContactMessages { get; }
     IGenericRepository<NewsletterSubscriber> NewsletterSubscribers { get; }

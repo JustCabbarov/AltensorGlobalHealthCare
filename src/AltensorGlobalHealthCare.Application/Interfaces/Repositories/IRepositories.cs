@@ -41,10 +41,14 @@ public interface IClinicRepository : IGenericRepository<Clinic>
 public interface IServiceCategoryRepository : IGenericRepository<ServiceCategory>
 {
     Task<IReadOnlyList<ServiceCategory>> GetHierarchyAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ServiceCategory>> GetAllWithCountsAsync(CancellationToken cancellationToken = default);
+    Task<ServiceCategory?> GetBySlugWithDetailsAsync(string slug, string? parentSlug = null, CancellationToken cancellationToken = default);
 }
 
 public interface IMedicalServiceRepository : IGenericRepository<MedicalService>
 {
     Task<MedicalService?> GetBySlugWithClinicsAsync(string slug, CancellationToken cancellationToken = default);
+    Task<MedicalService?> GetByIdWithDetailsAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MedicalService>> GetAllWithDetailsForAdminAsync(Guid? categoryId = null, string? search = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MedicalService>> SearchAsync(string searchTerm, CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,4 @@
-﻿using AltensorGlobalHealthCare.Domain.Common;
+using AltensorGlobalHealthCare.Domain.Common;
 
 namespace AltensorGlobalHealthCare.Domain.Entities;
 
@@ -70,6 +70,7 @@ public class Doctor : BaseEntity, IAuditableEntity, ISoftDelete
     public DateTime? DeletedAtUtc { get; set; }
 
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
+    public virtual ICollection<DoctorMedicalService> DoctorServices { get; set; } = new List<DoctorMedicalService>();
 }
 
 public class ServiceCategory : BaseEntity, IAuditableEntity, ISoftDelete
@@ -90,6 +91,15 @@ public class ServiceCategory : BaseEntity, IAuditableEntity, ISoftDelete
     public string? IconKey { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool ShowInHeaderNav { get; set; } = true;
+    public bool ShowOnHomePage { get; set; }
+
+    public string? MetaTitleAz { get; set; }
+    public string? MetaTitleEn { get; set; }
+    public string? MetaTitleRu { get; set; }
+    public string? MetaDescriptionAz { get; set; }
+    public string? MetaDescriptionEn { get; set; }
+    public string? MetaDescriptionRu { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAtUtc { get; set; }
@@ -97,6 +107,7 @@ public class ServiceCategory : BaseEntity, IAuditableEntity, ISoftDelete
     public DateTime? DeletedAtUtc { get; set; }
 
     public virtual ICollection<MedicalService> Services { get; set; } = new List<MedicalService>();
+    public virtual ICollection<FaqItem> Faqs { get; set; } = new List<FaqItem>();
 }
 
 public class MedicalService : BaseEntity, IAuditableEntity, ISoftDelete
@@ -112,6 +123,10 @@ public class MedicalService : BaseEntity, IAuditableEntity, ISoftDelete
     public string? AboutAz { get; set; }
     public string? AboutEn { get; set; }
     public string? AboutRu { get; set; }
+
+    public string? CandidateAz { get; set; }
+    public string? CandidateEn { get; set; }
+    public string? CandidateRu { get; set; }
 
     public string? PreparationAz { get; set; }
     public string? PreparationEn { get; set; }
@@ -129,6 +144,15 @@ public class MedicalService : BaseEntity, IAuditableEntity, ISoftDelete
     public string? ResultEn { get; set; }
     public string? ResultRu { get; set; }
 
+    public string? PackageInfoAz { get; set; }
+    public string? PackageInfoEn { get; set; }
+    public string? PackageInfoRu { get; set; }
+
+    public string? HeroImageUrl { get; set; }
+    public string? PromoBannerUrl { get; set; }
+    public Guid? RelatedPackageId { get; set; }
+    public virtual TreatmentPackage? RelatedPackage { get; set; }
+
     public string? DurationText { get; set; }
     public bool IsMostSearched { get; set; }
     public int DisplayOrder { get; set; }
@@ -140,6 +164,22 @@ public class MedicalService : BaseEntity, IAuditableEntity, ISoftDelete
     public DateTime? DeletedAtUtc { get; set; }
 
     public virtual ICollection<ClinicService> ClinicServices { get; set; } = new List<ClinicService>();
+    public virtual ICollection<DoctorMedicalService> DoctorServices { get; set; } = new List<DoctorMedicalService>();
+    public virtual ICollection<FaqItem> Faqs { get; set; } = new List<FaqItem>();
+    public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
+}
+
+public class DoctorMedicalService : BaseEntity, IAuditableEntity
+{
+    public Guid DoctorId { get; set; }
+    public virtual Doctor Doctor { get; set; } = null!;
+
+    public Guid MedicalServiceId { get; set; }
+    public virtual MedicalService MedicalService { get; set; } = null!;
+
+    public int DisplayOrder { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAtUtc { get; set; }
 }
 
 public class ClinicService : BaseEntity, IAuditableEntity

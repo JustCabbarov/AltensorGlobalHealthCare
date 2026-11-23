@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using AltensorGlobalHealthCare.Domain.Entities;
 
@@ -44,8 +44,17 @@ public class ServiceCategoryConfiguration : IEntityTypeConfiguration<ServiceCate
     {
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Slug).HasMaxLength(150).IsRequired();
-        builder.HasIndex(c => c.Slug).IsUnique();
+        builder.HasIndex(c => new { c.ParentId, c.Slug }).IsUnique();
+        builder.HasIndex(c => c.Slug)
+            .IsUnique()
+            .HasFilter("\"ParentId\" IS NULL");
         builder.Property(c => c.TitleAz).HasMaxLength(200).IsRequired();
+        builder.Property(c => c.MetaTitleAz).HasMaxLength(200);
+        builder.Property(c => c.MetaTitleEn).HasMaxLength(200);
+        builder.Property(c => c.MetaTitleRu).HasMaxLength(200);
+        builder.Property(c => c.MetaDescriptionAz).HasMaxLength(500);
+        builder.Property(c => c.MetaDescriptionEn).HasMaxLength(500);
+        builder.Property(c => c.MetaDescriptionRu).HasMaxLength(500);
 
         builder.HasOne(c => c.Parent)
             .WithMany(p => p.SubCategories)
@@ -62,11 +71,37 @@ public class MedicalServiceConfiguration : IEntityTypeConfiguration<MedicalServi
         builder.Property(s => s.Slug).HasMaxLength(200).IsRequired();
         builder.HasIndex(s => s.Slug).IsUnique();
         builder.Property(s => s.TitleAz).HasMaxLength(250).IsRequired();
+        builder.Property(s => s.HeroImageUrl).HasMaxLength(500);
+        builder.Property(s => s.PromoBannerUrl).HasMaxLength(500);
 
         builder.HasOne(s => s.Category)
             .WithMany(c => c.Services)
             .HasForeignKey(s => s.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(s => s.RelatedPackage)
+            .WithMany()
+            .HasForeignKey(s => s.RelatedPackageId)
+            .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class DoctorMedicalServiceConfiguration : IEntityTypeConfiguration<DoctorMedicalService>
+{
+    public void Configure(EntityTypeBuilder<DoctorMedicalService> builder)
+    {
+        builder.HasKey(dm => dm.Id);
+        builder.HasIndex(dm => new { dm.DoctorId, dm.MedicalServiceId }).IsUnique();
+
+        builder.HasOne(dm => dm.Doctor)
+            .WithMany(d => d.DoctorServices)
+            .HasForeignKey(dm => dm.DoctorId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(dm => dm.MedicalService)
+            .WithMany(s => s.DoctorServices)
+            .HasForeignKey(dm => dm.MedicalServiceId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 
@@ -230,7 +265,11 @@ public class CmsPageConfiguration : IEntityTypeConfiguration<CmsPage>
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Slug).HasMaxLength(150).IsRequired();
         builder.HasIndex(p => p.Slug).IsUnique();
+        builder.Property(p => p.ParentSlug).HasMaxLength(150);
+        builder.Property(p => p.PageType).HasMaxLength(50).HasDefaultValue("Standard").IsRequired();
         builder.Property(p => p.TitleAz).HasMaxLength(200).IsRequired();
+        builder.Property(p => p.ContentAz).IsRequired();
+        builder.Property(p => p.HeroImageUrl).HasMaxLength(500);
     }
 }
 
@@ -242,6 +281,91 @@ public class BlogPostConfiguration : IEntityTypeConfiguration<BlogPost>
         builder.Property(b => b.Slug).HasMaxLength(200).IsRequired();
         builder.HasIndex(b => b.Slug).IsUnique();
         builder.Property(b => b.TitleAz).HasMaxLength(300).IsRequired();
+    }
+}
+
+public class FaqItemConfiguration : IEntityTypeConfiguration<FaqItem>
+{
+    public void Configure(EntityTypeBuilder<FaqItem> builder)
+    {
+        builder.HasKey(f => f.Id);
+        builder.Property(f => f.QuestionAz).HasMaxLength(500).IsRequired();
+        builder.Property(f => f.AnswerAz).IsRequired();
+        builder.Property(f => f.Category).HasMaxLength(100);
+
+        builder.HasOne(f => f.MedicalService)
+            .WithMany(s => s.Faqs)
+            .HasForeignKey(f => f.MedicalServiceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(f => f.ServiceCategory)
+            .WithMany(c => c.Faqs)
+            .HasForeignKey(f => f.ServiceCategoryId)
+            .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class ReviewConfiguration : IEntityTypeConfiguration<Review>
+{
+    public void Configure(EntityTypeBuilder<Review> builder)
+    {
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.AuthorName).HasMaxLength(150).IsRequired();
+        builder.Property(r => r.AuthorCountry).HasMaxLength(100);
+        builder.Property(r => r.Comment).HasMaxLength(2000).IsRequired();
+
+        builder.HasOne(r => r.Clinic)
+            .WithMany(c => c.Reviews)
+            .HasForeignKey(r => r.ClinicId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(r => r.Doctor)
+            .WithMany(d => d.Reviews)
+            .HasForeignKey(r => r.DoctorId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(r => r.MedicalService)
+            .WithMany(s => s.Reviews)
+            .HasForeignKey(r => r.MedicalServiceId)
+            .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class AboutPillarConfiguration : IEntityTypeConfiguration<AboutPillar>
+{
+    public void Configure(EntityTypeBuilder<AboutPillar> builder)
+    {
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.TitleAz).HasMaxLength(200).IsRequired();
+        builder.Property(p => p.IconKey).HasMaxLength(100);
+    }
+}
+
+public class TeamMemberConfiguration : IEntityTypeConfiguration<TeamMember>
+{
+    public void Configure(EntityTypeBuilder<TeamMember> builder)
+    {
+        builder.HasKey(t => t.Id);
+        builder.Property(t => t.FullName).HasMaxLength(150).IsRequired();
+        builder.Property(t => t.RoleAz).HasMaxLength(200).IsRequired();
+        builder.Property(t => t.Email).HasMaxLength(150);
+        builder.Property(t => t.Phone).HasMaxLength(50);
+        builder.Property(t => t.WhatsAppUrl).HasMaxLength(300);
+        builder.Property(t => t.PhotoUrl).HasMaxLength(500);
+    }
+}
+
+public class HowItWorksStepConfiguration : IEntityTypeConfiguration<HowItWorksStep>
+{
+    public void Configure(EntityTypeBuilder<HowItWorksStep> builder)
+    {
+        builder.HasKey(s => s.Id);
+        builder.Property(s => s.TitleAz).HasMaxLength(250).IsRequired();
+        builder.Property(s => s.ContentAz).IsRequired();
+        builder.Property(s => s.CtaLabelAz).HasMaxLength(150);
+        builder.Property(s => s.CtaLabelEn).HasMaxLength(150);
+        builder.Property(s => s.CtaLabelRu).HasMaxLength(150);
+        builder.Property(s => s.CtaUrl).HasMaxLength(300);
     }
 }
 

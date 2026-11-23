@@ -1,15 +1,31 @@
-﻿namespace AltensorGlobalHealthCare.Application.DTOs.Catalog;
+using AltensorGlobalHealthCare.Application.DTOs.Content;
+
+namespace AltensorGlobalHealthCare.Application.DTOs.Catalog;
 
 public class CategoryDto
 {
     public Guid Id { get; set; }
+    public Guid? ParentId { get; set; }
     public string Slug { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? IconKey { get; set; }
     public int DisplayOrder { get; set; }
+    public bool ShowInHeaderNav { get; set; }
+    public bool ShowOnHomePage { get; set; }
+    public string? MetaTitle { get; set; }
+    public string? MetaDescription { get; set; }
     public IList<CategoryDto> SubCategories { get; set; } = new List<CategoryDto>();
     public IList<MedicalServiceSummaryDto> Services { get; set; } = new List<MedicalServiceSummaryDto>();
+}
+
+public class CategoryDetailDto : CategoryDto
+{
+    public string? ParentCategorySlug { get; set; }
+    public string? ParentCategoryTitle { get; set; }
+    public IList<ClinicSummaryDto> Clinics { get; set; } = new List<ClinicSummaryDto>();
+    public IList<DoctorDto> Doctors { get; set; } = new List<DoctorDto>();
+    public IList<ReviewDto> Reviews { get; set; } = new List<ReviewDto>();
 }
 
 public class MedicalServiceSummaryDto
@@ -29,16 +45,28 @@ public class MedicalServiceDetailDto
     public string Slug { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public Guid CategoryId { get; set; }
+    public string CategorySlug { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
+    public Guid? ParentCategoryId { get; set; }
+    public string? ParentCategorySlug { get; set; }
+    public string? ParentCategoryName { get; set; }
     public string? About { get; set; }
+    public string? Candidate { get; set; }
     public string? Preparation { get; set; }
     public string? Steps { get; set; }
     public string? Precautions { get; set; }
     public string? Result { get; set; }
+    public string? PackageInfo { get; set; }
+    public string? HeroImageUrl { get; set; }
+    public string? PromoBannerUrl { get; set; }
+    public TreatmentPackageDto? RelatedPackage { get; set; }
     public string? DurationText { get; set; }
     public decimal? StartingPrice { get; set; }
     public string Currency { get; set; } = "EUR";
     public IList<ClinicPriceDto> AvailableClinics { get; set; } = new List<ClinicPriceDto>();
+    public IList<DoctorDto> AvailableDoctors { get; set; } = new List<DoctorDto>();
+    public IList<ReviewDto> Reviews { get; set; } = new List<ReviewDto>();
+    public IList<FaqItemDto> Faqs { get; set; } = new List<FaqItemDto>();
 }
 
 public class ClinicPriceDto
@@ -47,6 +75,8 @@ public class ClinicPriceDto
     public string ClinicName { get; set; } = string.Empty;
     public string ClinicSlug { get; set; } = string.Empty;
     public string? ClinicLogoUrl { get; set; }
+    public string? ClinicCoverUrl { get; set; }
+    public string? ShortDescription { get; set; }
     public string? City { get; set; }
     public decimal PriceFrom { get; set; }
     public string Currency { get; set; } = "EUR";
@@ -57,6 +87,7 @@ public class ClinicSummaryDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Slug { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public string? LogoUrl { get; set; }
     public string? CoverUrl { get; set; }
     public string? City { get; set; }

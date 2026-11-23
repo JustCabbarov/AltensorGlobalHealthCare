@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using AltensorGlobalHealthCare.Domain.Common;
 using AltensorGlobalHealthCare.Domain.Entities;
@@ -20,6 +20,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<ServiceCategory> ServiceCategories => Set<ServiceCategory>();
     public DbSet<MedicalService> MedicalServices => Set<MedicalService>();
     public DbSet<ClinicService> ClinicServices => Set<ClinicService>();
+    public DbSet<DoctorMedicalService> DoctorMedicalServices => Set<DoctorMedicalService>();
     public DbSet<TreatmentPackage> TreatmentPackages => Set<TreatmentPackage>();
 
     public DbSet<Inquiry> Inquiries => Set<Inquiry>();
@@ -33,6 +34,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, Applicati
     public DbSet<CmsPage> CmsPages => Set<CmsPage>();
     public DbSet<BlogPost> BlogPosts => Set<BlogPost>();
     public DbSet<FaqItem> FaqItems => Set<FaqItem>();
+    public DbSet<AboutPillar> AboutPillars => Set<AboutPillar>();
+    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
+    public DbSet<HowItWorksStep> HowItWorksSteps => Set<HowItWorksStep>();
     public DbSet<Partner> Partners => Set<Partner>();
     public DbSet<ContactMessage> ContactMessages => Set<ContactMessage>();
     public DbSet<NewsletterSubscriber> NewsletterSubscribers => Set<NewsletterSubscriber>();

@@ -47,6 +47,7 @@ public interface INotificationDispatcher
     Task SendVerificationCodeEmailAsync(string email, string name, string code, CancellationToken cancellationToken = default);
     Task SendPasswordResetCodeEmailAsync(string email, string name, string code, CancellationToken cancellationToken = default);
     Task SendInquiryNotificationToCoordinatorAsync(Inquiry inquiry, CancellationToken cancellationToken = default);
+    Task SendContactMessageNotificationToCoordinatorAsync(ContactMessage message, CancellationToken cancellationToken = default);
     Task SendOfferNotificationToPatientAsync(Offer offer, CancellationToken cancellationToken = default);
     Task SendNewMessageNotificationAsync(Inquiry inquiry, InquiryMessage message, string recipientEmail, CancellationToken cancellationToken = default);
     Task<(bool Success, string BotUsername, string ChatId, string Message)> ConnectAndVerifyTelegramBotAsync(string botToken, string? manualChatId, CancellationToken cancellationToken = default);

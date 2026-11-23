@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AltensorGlobalHealthCare.Application.Common;
 using AltensorGlobalHealthCare.Application.DTOs.Admin;
@@ -108,6 +108,13 @@ public class AdminController : ControllerBase
     }
 
     // --- Categories & Services ---
+    [HttpGet("categories")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AdminCategoryDto>>>> GetCategories(CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAllCategoriesAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminCategoryDto>>.Ok(result));
+    }
+
     [HttpPost("categories")]
     public async Task<ActionResult<ApiResponse<CategoryDto>>> CreateCategory([FromBody] CreateCategoryRequestDto request, CancellationToken cancellationToken)
     {
@@ -127,6 +134,23 @@ public class AdminController : ControllerBase
     {
         await _adminService.DeleteCategoryAsync(id, cancellationToken);
         return Ok(ApiResponse<string>.Ok("Kateqoriya silindi."));
+    }
+
+    [HttpGet("services")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AdminMedicalServiceSummaryDto>>>> GetServices(
+        [FromQuery] Guid? categoryId,
+        [FromQuery] string? search,
+        CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAllServicesAsync(categoryId, search, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminMedicalServiceSummaryDto>>.Ok(result));
+    }
+
+    [HttpGet("services/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<AdminMedicalServiceDetailDto>>> GetServiceById(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetServiceByIdForAdminAsync(id, cancellationToken);
+        return Ok(ApiResponse<AdminMedicalServiceDetailDto>.Ok(result));
     }
 
     [HttpPost("services")]
@@ -150,11 +174,44 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse<string>.Ok("Tibbi prosedur silindi."));
     }
 
+    [HttpPost("services/{id:guid}/hero-image")]
+    public async Task<ActionResult<ApiResponse<string>>> UpdateServiceHeroImage(Guid id, IFormFile file, CancellationToken cancellationToken)
+    {
+        var fileDto = new FileUploadDto(file.OpenReadStream(), file.FileName, file.ContentType, file.Length);
+        var url = await _adminService.UpdateServiceHeroImageAsync(id, fileDto, cancellationToken);
+        return Ok(ApiResponse<string>.Ok(url, "Prosedur əsas şəkli yeniləndi."));
+    }
+
+    [HttpPost("services/{id:guid}/promo-banner")]
+    public async Task<ActionResult<ApiResponse<string>>> UpdateServicePromoBanner(Guid id, IFormFile file, CancellationToken cancellationToken)
+    {
+        var fileDto = new FileUploadDto(file.OpenReadStream(), file.FileName, file.ContentType, file.Length);
+        var url = await _adminService.UpdateServicePromoBannerAsync(id, fileDto, cancellationToken);
+        return Ok(ApiResponse<string>.Ok(url, "Prosedur promo banneri yeniləndi."));
+    }
+
     [HttpPost("services/price")]
     public async Task<ActionResult<ApiResponse<string>>> SetClinicPrice([FromBody] SetClinicPriceRequestDto request, CancellationToken cancellationToken)
     {
         await _adminService.SetClinicPriceAsync(request, cancellationToken);
         return Ok(ApiResponse<string>.Ok("Klinika üçün prosedur qiyməti təyin edildi."));
+    }
+
+    [HttpDelete("services/{serviceId:guid}/clinics/{clinicId:guid}")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteClinicPrice(Guid serviceId, Guid clinicId, CancellationToken cancellationToken)
+    {
+        await _adminService.DeleteClinicPriceAsync(serviceId, clinicId, cancellationToken);
+        return Ok(ApiResponse<string>.Ok("Klinika qiyməti silindi."));
+    }
+
+    [HttpPut("services/{serviceId:guid}/doctors")]
+    public async Task<ActionResult<ApiResponse<string>>> SetServiceDoctors(
+        Guid serviceId,
+        [FromBody] SetServiceDoctorsRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        await _adminService.SetServiceDoctorsAsync(serviceId, request, cancellationToken);
+        return Ok(ApiResponse<string>.Ok("Prosedura bağlı həkimlər yeniləndi."));
     }
 
     // --- Packages ---
@@ -187,12 +244,145 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse<string>.Ok(url, "Paket qapağı yeniləndi."));
     }
 
-    // --- Content ---
+    // --- Content & About Us ---
+    [HttpGet("pages")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AdminCmsPageDto>>>> GetCmsPages(CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAllCmsPagesAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminCmsPageDto>>.Ok(result));
+    }
+
+    [HttpGet("pages/{slug}")]
+    public async Task<ActionResult<ApiResponse<AdminCmsPageDto>>> GetCmsPageBySlug(string slug, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetCmsPageBySlugForAdminAsync(slug, cancellationToken);
+        return Ok(ApiResponse<AdminCmsPageDto>.Ok(result));
+    }
+
     [HttpPost("pages")]
-    public async Task<ActionResult<ApiResponse<CmsPageDto>>> UpsertCmsPage([FromBody] CmsPageDto request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<AdminCmsPageDto>>> UpsertCmsPage([FromBody] UpsertCmsPageRequestDto request, CancellationToken cancellationToken)
     {
         var result = await _adminService.UpsertCmsPageAsync(request, cancellationToken);
-        return Ok(ApiResponse<CmsPageDto>.Ok(result, "Səhifə saxlanıldı."));
+        return Ok(ApiResponse<AdminCmsPageDto>.Ok(result, "Səhifə saxlanıldı."));
+    }
+
+    [HttpDelete("pages/{slug}")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteCmsPage(string slug, CancellationToken cancellationToken)
+    {
+        await _adminService.DeleteCmsPageAsync(slug, cancellationToken);
+        return Ok(ApiResponse<string>.Ok("Səhifə silindi."));
+    }
+
+    // --- About Us Pillars ---
+    [HttpGet("about/pillars")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AdminAboutPillarDto>>>> GetAboutPillars(CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAllAboutPillarsAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminAboutPillarDto>>.Ok(result));
+    }
+
+    [HttpPost("about/pillars")]
+    public async Task<ActionResult<ApiResponse<AdminAboutPillarDto>>> CreateAboutPillar([FromBody] UpsertAboutPillarRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.CreateAboutPillarAsync(request, cancellationToken);
+        return Ok(ApiResponse<AdminAboutPillarDto>.Ok(result, "Dəyər əlavə edildi."));
+    }
+
+    [HttpPut("about/pillars/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<AdminAboutPillarDto>>> UpdateAboutPillar(Guid id, [FromBody] UpsertAboutPillarRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.UpdateAboutPillarAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<AdminAboutPillarDto>.Ok(result, "Dəyər yeniləndi."));
+    }
+
+    [HttpDelete("about/pillars/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteAboutPillar(Guid id, CancellationToken cancellationToken)
+    {
+        await _adminService.DeleteAboutPillarAsync(id, cancellationToken);
+        return Ok(ApiResponse<string>.Ok("Dəyər silindi."));
+    }
+
+    // --- About Us Team ---
+    [HttpGet("about/team")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AdminTeamMemberDto>>>> GetTeamMembers(CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAllTeamMembersAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminTeamMemberDto>>.Ok(result));
+    }
+
+    [HttpPost("about/team")]
+    public async Task<ActionResult<ApiResponse<AdminTeamMemberDto>>> CreateTeamMember([FromBody] UpsertTeamMemberRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.CreateTeamMemberAsync(request, cancellationToken);
+        return Ok(ApiResponse<AdminTeamMemberDto>.Ok(result, "Komanda üzvü əlavə edildi."));
+    }
+
+    [HttpPut("about/team/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<AdminTeamMemberDto>>> UpdateTeamMember(Guid id, [FromBody] UpsertTeamMemberRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.UpdateTeamMemberAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<AdminTeamMemberDto>.Ok(result, "Komanda üzvü yeniləndi."));
+    }
+
+    [HttpDelete("about/team/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteTeamMember(Guid id, CancellationToken cancellationToken)
+    {
+        await _adminService.DeleteTeamMemberAsync(id, cancellationToken);
+        return Ok(ApiResponse<string>.Ok("Komanda üzvü silindi."));
+    }
+
+    [HttpPost("about/team/{id:guid}/photo")]
+    public async Task<ActionResult<ApiResponse<string>>> UpdateTeamMemberPhoto(Guid id, IFormFile file, CancellationToken cancellationToken)
+    {
+        var fileDto = new FileUploadDto(file.OpenReadStream(), file.FileName, file.ContentType, file.Length);
+        var url = await _adminService.UpdateTeamMemberPhotoAsync(id, fileDto, cancellationToken);
+        return Ok(ApiResponse<string>.Ok(url, "Komanda üzvünün şəkli yeniləndi."));
+    }
+
+    // --- About Us How It Works ---
+    [HttpGet("about/how-it-works")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AdminHowItWorksStepDto>>>> GetHowItWorksSteps(CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAllHowItWorksStepsAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminHowItWorksStepDto>>.Ok(result));
+    }
+
+    [HttpPost("about/how-it-works")]
+    public async Task<ActionResult<ApiResponse<AdminHowItWorksStepDto>>> CreateHowItWorksStep([FromBody] UpsertHowItWorksStepRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.CreateHowItWorksStepAsync(request, cancellationToken);
+        return Ok(ApiResponse<AdminHowItWorksStepDto>.Ok(result, "Addım əlavə edildi."));
+    }
+
+    [HttpPut("about/how-it-works/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<AdminHowItWorksStepDto>>> UpdateHowItWorksStep(Guid id, [FromBody] UpsertHowItWorksStepRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.UpdateHowItWorksStepAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<AdminHowItWorksStepDto>.Ok(result, "Addım yeniləndi."));
+    }
+
+    [HttpDelete("about/how-it-works/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteHowItWorksStep(Guid id, CancellationToken cancellationToken)
+    {
+        await _adminService.DeleteHowItWorksStepAsync(id, cancellationToken);
+        return Ok(ApiResponse<string>.Ok("Addım silindi."));
+    }
+
+    // --- Contact Messages ---
+    [HttpGet("contact-messages")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<ContactMessageDto>>>> GetContactMessages(
+        [FromQuery] bool? isHandled,
+        CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetContactMessagesAsync(isHandled, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<ContactMessageDto>>.Ok(result));
+    }
+
+    [HttpPatch("contact-messages/{id:guid}/handle")]
+    public async Task<ActionResult<ApiResponse<ContactMessageDto>>> HandleContactMessage(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.HandleContactMessageAsync(id, cancellationToken);
+        return Ok(ApiResponse<ContactMessageDto>.Ok(result, "Əlaqə mesajı icra edildi kimi qeyd olundu."));
     }
 
     [HttpPost("blog")]
@@ -209,11 +399,27 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse<string>.Ok("Məqalə silindi."));
     }
 
+    [HttpGet("faq")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AdminFaqItemDto>>>> GetFaqs(
+        [FromQuery] Guid? medicalServiceId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAllFaqsAsync(medicalServiceId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdminFaqItemDto>>.Ok(result));
+    }
+
     [HttpPost("faq")]
-    public async Task<ActionResult<ApiResponse<FaqItemDto>>> CreateFaq([FromBody] FaqItemDto request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<AdminFaqItemDto>>> CreateFaq([FromBody] UpsertFaqRequestDto request, CancellationToken cancellationToken)
     {
         var result = await _adminService.CreateFaqAsync(request, cancellationToken);
-        return Ok(ApiResponse<FaqItemDto>.Ok(result, "Sual əlavə edildi."));
+        return Ok(ApiResponse<AdminFaqItemDto>.Ok(result, "Sual əlavə edildi."));
+    }
+
+    [HttpPut("faq/{id:guid}")]
+    public async Task<ActionResult<ApiResponse<AdminFaqItemDto>>> UpdateFaq(Guid id, [FromBody] UpsertFaqRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await _adminService.UpdateFaqAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<AdminFaqItemDto>.Ok(result, "Sual yeniləndi."));
     }
 
     [HttpDelete("faq/{id:guid}")]

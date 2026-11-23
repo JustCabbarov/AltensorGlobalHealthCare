@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using AltensorGlobalHealthCare.Application.Common.Exceptions;
 using AltensorGlobalHealthCare.Application.Common.Localization;
 using AltensorGlobalHealthCare.Application.DTOs.Catalog;
@@ -12,31 +13,75 @@ namespace AltensorGlobalHealthCare.Application.Services;
 public class PublicPortalService : IPublicPortalService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly INotificationDispatcher _notifications;
+    private readonly ILogger<PublicPortalService> _logger;
 
-    public PublicPortalService(IUnitOfWork unitOfWork)
+    public PublicPortalService(
+        IUnitOfWork unitOfWork,
+        INotificationDispatcher notifications,
+        ILogger<PublicPortalService> logger)
     {
         _unitOfWork = unitOfWork;
+        _notifications = notifications;
+        _logger = logger;
     }
 
-    public async Task<IReadOnlyList<CategoryDto>> GetCategoriesAsync(string? lang, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CategoryDto>> GetCategoriesAsync(
+        string? lang,
+        bool headerOnly = false,
+        bool homeOnly = false,
+        CancellationToken cancellationToken = default)
     {
         var hierarchy = await _unitOfWork.ServiceCategories.GetHierarchyAsync(cancellationToken);
-        return hierarchy.Select(c => MapCategoryToDto(c, lang)).ToList();
+
+        var filtered = hierarchy.Where(c =>
+            (!headerOnly || c.ShowInHeaderNav) &&
+            (!homeOnly || c.ShowOnHomePage));
+
+        return filtered.Select(c => MapCategoryToDto(c, lang, headerOnly)).ToList();
     }
 
-    public async Task<CategoryDto?> GetCategoryBySlugAsync(string slug, string? lang, CancellationToken cancellationToken = default)
+    public async Task<CategoryDetailDto?> GetCategoryBySlugAsync(string slug, string? lang, CancellationToken cancellationToken = default)
     {
-        var categories = await _unitOfWork.ServiceCategories.GetHierarchyAsync(cancellationToken);
-        var target = FindCategoryRecursive(categories, slug);
-        return target != null ? MapCategoryToDto(target, lang) : null;
+        var normalizedSlug = slug.Trim().ToLowerInvariant();
+        var target = await _unitOfWork.ServiceCategories.GetBySlugWithDetailsAsync(normalizedSlug, null, cancellationToken);
+        if (target == null)
+        {
+            // Fallback: check sub-category by slug if root not found
+            var hierarchy = await _unitOfWork.ServiceCategories.GetHierarchyAsync(cancellationToken);
+            var subMatch = FindCategoryRecursive(hierarchy, normalizedSlug);
+            if (subMatch == null) return null;
+
+            target = await _unitOfWork.ServiceCategories.GetBySlugWithDetailsAsync(
+                subMatch.Slug,
+                subMatch.Parent?.Slug,
+                cancellationToken);
+        }
+
+        return target != null ? MapCategoryDetailToDto(target, lang) : null;
+    }
+
+    public async Task<CategoryDetailDto?> GetSubCategoryBySlugAsync(
+        string categorySlug,
+        string subSlug,
+        string? lang,
+        CancellationToken cancellationToken = default)
+    {
+        var parentSlug = categorySlug.Trim().ToLowerInvariant();
+        var childSlug = subSlug.Trim().ToLowerInvariant();
+
+        var target = await _unitOfWork.ServiceCategories.GetBySlugWithDetailsAsync(childSlug, parentSlug, cancellationToken);
+        return target != null ? MapCategoryDetailToDto(target, lang) : null;
     }
 
     public async Task<MedicalServiceDetailDto?> GetServiceBySlugAsync(string slug, string? lang, CancellationToken cancellationToken = default)
     {
-        var service = await _unitOfWork.MedicalServices.GetBySlugWithClinicsAsync(slug, cancellationToken);
+        var normalizedSlug = slug.Trim().ToLowerInvariant();
+        var service = await _unitOfWork.MedicalServices.GetBySlugWithClinicsAsync(normalizedSlug, cancellationToken);
         if (service == null) return null;
 
-        var startingPrice = service.ClinicServices.Where(cs => cs.IsActive).OrderBy(cs => cs.PriceFrom).FirstOrDefault();
+        var activePrices = service.ClinicServices.Where(cs => cs.IsActive && cs.Clinic.IsActive).ToList();
+        var startingPrice = activePrices.OrderBy(cs => cs.PriceFrom).FirstOrDefault();
 
         return new MedicalServiceDetailDto
         {
@@ -44,39 +89,84 @@ public class PublicPortalService : IPublicPortalService
             Slug = service.Slug,
             Title = LocalizedText.Resolve(service.TitleAz, service.TitleEn, service.TitleRu, lang),
             CategoryId = service.CategoryId,
+            CategorySlug = service.Category?.Slug ?? string.Empty,
             CategoryName = LocalizedText.Resolve(service.Category?.TitleAz, service.Category?.TitleEn, service.Category?.TitleRu, lang),
+            ParentCategoryId = service.Category?.ParentId,
+            ParentCategorySlug = service.Category?.Parent?.Slug,
+            ParentCategoryName = service.Category?.Parent != null
+                ? LocalizedText.Resolve(service.Category.Parent.TitleAz, service.Category.Parent.TitleEn, service.Category.Parent.TitleRu, lang)
+                : null,
             About = LocalizedText.Resolve(service.AboutAz, service.AboutEn, service.AboutRu, lang),
+            Candidate = LocalizedText.Resolve(service.CandidateAz, service.CandidateEn, service.CandidateRu, lang),
             Preparation = LocalizedText.Resolve(service.PreparationAz, service.PreparationEn, service.PreparationRu, lang),
             Steps = LocalizedText.Resolve(service.StepsAz, service.StepsEn, service.StepsRu, lang),
             Precautions = LocalizedText.Resolve(service.PrecautionsAz, service.PrecautionsEn, service.PrecautionsRu, lang),
             Result = LocalizedText.Resolve(service.ResultAz, service.ResultEn, service.ResultRu, lang),
+            PackageInfo = LocalizedText.Resolve(service.PackageInfoAz, service.PackageInfoEn, service.PackageInfoRu, lang),
+            HeroImageUrl = service.HeroImageUrl,
+            PromoBannerUrl = service.PromoBannerUrl,
+            RelatedPackage = service.RelatedPackage != null && service.RelatedPackage.IsActive
+                ? new TreatmentPackageDto
+                {
+                    Id = service.RelatedPackage.Id,
+                    Slug = service.RelatedPackage.Slug,
+                    Title = LocalizedText.Resolve(service.RelatedPackage.TitleAz, service.RelatedPackage.TitleEn, service.RelatedPackage.TitleRu, lang),
+                    Description = LocalizedText.Resolve(service.RelatedPackage.DescriptionAz, service.RelatedPackage.DescriptionEn, service.RelatedPackage.DescriptionRu, lang),
+                    Includes = LocalizedText.Resolve(service.RelatedPackage.IncludesAz, service.RelatedPackage.IncludesEn, service.RelatedPackage.IncludesRu, lang),
+                    PriceFrom = service.RelatedPackage.PriceFrom,
+                    Currency = service.RelatedPackage.Currency,
+                    CoverUrl = service.RelatedPackage.CoverUrl,
+                    MedicalServiceId = service.RelatedPackage.MedicalServiceId
+                }
+                : null,
             DurationText = service.DurationText,
             StartingPrice = startingPrice?.PriceFrom,
             Currency = startingPrice?.Currency ?? "EUR",
-            AvailableClinics = service.ClinicServices.Where(cs => cs.IsActive && cs.Clinic.IsActive).Select(cs => new ClinicPriceDto
-            {
-                ClinicId = cs.ClinicId,
-                ClinicName = cs.Clinic.Name,
-                ClinicSlug = cs.Clinic.Slug,
-                ClinicLogoUrl = cs.Clinic.LogoUrl,
-                City = cs.Clinic.City,
-                PriceFrom = cs.PriceFrom,
-                Currency = cs.Currency
-            }).ToList()
+            AvailableClinics = activePrices
+                .OrderBy(cs => cs.PriceFrom)
+                .Select(cs => new ClinicPriceDto
+                {
+                    ClinicId = cs.ClinicId,
+                    ClinicName = cs.Clinic.Name,
+                    ClinicSlug = cs.Clinic.Slug,
+                    ClinicLogoUrl = cs.Clinic.LogoUrl,
+                    ClinicCoverUrl = cs.Clinic.CoverUrl,
+                    ShortDescription = LocalizedText.Resolve(cs.Clinic.DescriptionAz, cs.Clinic.DescriptionEn, cs.Clinic.DescriptionRu, lang),
+                    City = cs.Clinic.City,
+                    PriceFrom = cs.PriceFrom,
+                    Currency = cs.Currency
+                }).ToList(),
+            AvailableDoctors = service.DoctorServices
+                .Where(dm => dm.Doctor != null && dm.Doctor.IsActive && dm.Doctor.Clinic != null && dm.Doctor.Clinic.IsActive)
+                .OrderBy(dm => dm.DisplayOrder)
+                .ThenBy(dm => dm.Doctor.DisplayOrder)
+                .Select(dm => MapDoctorToDto(dm.Doctor, lang))
+                .ToList(),
+            Reviews = service.Reviews
+                .Where(r => r.IsPublished)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .Select(MapReviewToDto)
+                .ToList(),
+            Faqs = service.Faqs
+                .Where(f => f.IsActive)
+                .OrderBy(f => f.DisplayOrder)
+                .Select(f => new FaqItemDto
+                {
+                    Id = f.Id,
+                    Question = LocalizedText.Resolve(f.QuestionAz, f.QuestionEn, f.QuestionRu, lang),
+                    Answer = LocalizedText.Resolve(f.AnswerAz, f.AnswerEn, f.AnswerRu, lang),
+                    Category = f.Category
+                }).ToList()
         };
     }
 
     public async Task<IReadOnlyList<MedicalServiceSummaryDto>> GetMostSearchedServicesAsync(string? lang, CancellationToken cancellationToken = default)
     {
-        var services = await _unitOfWork.MedicalServices.GetListAsync(s => s.IsActive && s.IsMostSearched, cancellationToken);
-        return services.OrderBy(s => s.DisplayOrder).Select(s => new MedicalServiceSummaryDto
-        {
-            Id = s.Id,
-            Slug = s.Slug,
-            Title = LocalizedText.Resolve(s.TitleAz, s.TitleEn, s.TitleRu, lang),
-            DurationText = s.DurationText,
-            IsMostSearched = s.IsMostSearched
-        }).ToList();
+        var services = await _unitOfWork.MedicalServices.GetListAsync(
+            s => s.IsActive && s.IsMostSearched,
+            cancellationToken,
+            s => s.ClinicServices);
+        return services.OrderBy(s => s.DisplayOrder).Select(s => MapServiceSummaryToDto(s, lang)).ToList();
     }
 
     public async Task<IReadOnlyList<TreatmentPackageDto>> GetPackagesAsync(string? lang, CancellationToken cancellationToken = default)
@@ -127,6 +217,7 @@ public class PublicPortalService : IPublicPortalService
             Id = c.Id,
             Name = c.Name,
             Slug = c.Slug,
+            Description = LocalizedText.Resolve(c.DescriptionAz, c.DescriptionEn, c.DescriptionRu, lang),
             LogoUrl = c.LogoUrl,
             CoverUrl = c.CoverUrl,
             City = c.City,
@@ -262,27 +353,96 @@ public class PublicPortalService : IPublicPortalService
     public async Task<IReadOnlyList<MedicalServiceSummaryDto>> SearchAsync(string query, string? lang, CancellationToken cancellationToken = default)
     {
         var services = await _unitOfWork.MedicalServices.SearchAsync(query, cancellationToken);
-        return services.Select(s => new MedicalServiceSummaryDto
-        {
-            Id = s.Id,
-            Slug = s.Slug,
-            Title = LocalizedText.Resolve(s.TitleAz, s.TitleEn, s.TitleRu, lang),
-            DurationText = s.DurationText,
-            IsMostSearched = s.IsMostSearched
-        }).ToList();
+        return services.Select(s => MapServiceSummaryToDto(s, lang)).ToList();
     }
 
     public async Task<CmsPageDto?> GetCmsPageAsync(string slug, string? lang, CancellationToken cancellationToken = default)
     {
-        var page = await _unitOfWork.CmsPages.FindAsync(p => p.Slug == slug && p.IsPublished, cancellationToken);
-        if (page == null) return null;
+        var normalizedSlug = slug.Trim().ToLowerInvariant();
+        var page = await _unitOfWork.CmsPages.FindAsync(p => p.Slug == normalizedSlug && p.IsPublished, cancellationToken);
+        return page != null ? MapCmsPageToDto(page, lang) : null;
+    }
 
-        return new CmsPageDto
+    public async Task<IReadOnlyList<CmsPageMenuItemDto>> GetCmsPagesMenuAsync(string? parentSlug, string? lang, CancellationToken cancellationToken = default)
+    {
+        var normalizedParent = parentSlug?.Trim().ToLowerInvariant();
+        var pages = await _unitOfWork.CmsPages.GetListAsync(
+            p => p.IsPublished && p.ShowInMenu &&
+                 (string.IsNullOrEmpty(normalizedParent) || p.ParentSlug == normalizedParent),
+            cancellationToken);
+
+        return pages
+            .OrderBy(p => p.DisplayOrder)
+            .Select(p => new CmsPageMenuItemDto
+            {
+                Slug = p.Slug,
+                Title = LocalizedText.Resolve(p.TitleAz, p.TitleEn, p.TitleRu, lang),
+                PageType = p.PageType,
+                DisplayOrder = p.DisplayOrder
+            })
+            .ToList();
+    }
+
+    public async Task<AboutUsDto> GetAboutUsAsync(string? lang, CancellationToken cancellationToken = default)
+    {
+        var aboutPage = await _unitOfWork.CmsPages.FindAsync(p => p.Slug == "about-us" && p.IsPublished, cancellationToken);
+        var subPages = await _unitOfWork.CmsPages.GetListAsync(
+            p => p.IsPublished && p.ShowInMenu && p.ParentSlug == "about-us",
+            cancellationToken);
+        var pillars = await _unitOfWork.AboutPillars.GetListAsync(p => p.IsActive, cancellationToken);
+        var teamMembers = await _unitOfWork.TeamMembers.GetListAsync(t => t.IsActive, cancellationToken);
+        var steps = await _unitOfWork.HowItWorksSteps.GetListAsync(s => s.IsActive, cancellationToken);
+
+        var mappedTeam = teamMembers
+            .OrderBy(t => t.DisplayOrder)
+            .Select(t => MapTeamMemberToDto(t, lang))
+            .ToList();
+
+        return new AboutUsDto
         {
-            Slug = page.Slug,
-            Title = LocalizedText.Resolve(page.TitleAz, page.TitleEn, page.TitleRu, lang),
-            Heading = LocalizedText.Resolve(page.HeadingAz, page.HeadingEn, page.HeadingRu, lang),
-            Content = LocalizedText.Resolve(page.ContentAz, page.ContentEn, page.ContentRu, lang)
+            Page = aboutPage != null ? MapCmsPageToDto(aboutPage, lang) : null,
+            SubPages = subPages
+                .OrderBy(p => p.DisplayOrder)
+                .Select(p => new CmsPageMenuItemDto
+                {
+                    Slug = p.Slug,
+                    Title = LocalizedText.Resolve(p.TitleAz, p.TitleEn, p.TitleRu, lang),
+                    PageType = p.PageType,
+                    DisplayOrder = p.DisplayOrder
+                }).ToList(),
+            Pillars = pillars
+                .OrderBy(p => p.DisplayOrder)
+                .Select(p => new AboutPillarDto
+                {
+                    Id = p.Id,
+                    Title = LocalizedText.Resolve(p.TitleAz, p.TitleEn, p.TitleRu, lang),
+                    Description = LocalizedText.Resolve(p.DescriptionAz, p.DescriptionEn, p.DescriptionRu, lang),
+                    IconKey = p.IconKey,
+                    DisplayOrder = p.DisplayOrder
+                }).ToList(),
+            TeamMembers = mappedTeam,
+            HowItWorksSteps = steps
+                .OrderBy(s => s.DisplayOrder)
+                .ThenBy(s => s.StepNumber)
+                .Select(s => MapHowItWorksStepToDto(s, lang))
+                .ToList(),
+            PrimaryCoordinator = mappedTeam.FirstOrDefault(t => t.IsPrimaryCoordinator)
+        };
+    }
+
+    public async Task<HowItWorksDto> GetHowItWorksAsync(string? lang, CancellationToken cancellationToken = default)
+    {
+        var page = await _unitOfWork.CmsPages.FindAsync(p => p.Slug == "how-it-works" && p.IsPublished, cancellationToken);
+        var steps = await _unitOfWork.HowItWorksSteps.GetListAsync(s => s.IsActive, cancellationToken);
+
+        return new HowItWorksDto
+        {
+            Page = page != null ? MapCmsPageToDto(page, lang) : null,
+            Steps = steps
+                .OrderBy(s => s.DisplayOrder)
+                .ThenBy(s => s.StepNumber)
+                .Select(s => MapHowItWorksStepToDto(s, lang))
+                .ToList()
         };
     }
 
@@ -317,7 +477,9 @@ public class PublicPortalService : IPublicPortalService
 
     public async Task<IReadOnlyList<FaqItemDto>> GetFaqItemsAsync(string? lang, CancellationToken cancellationToken = default)
     {
-        var faqs = await _unitOfWork.FaqItems.GetListAsync(f => f.IsActive, cancellationToken);
+        var faqs = await _unitOfWork.FaqItems.GetListAsync(
+            f => f.IsActive && f.MedicalServiceId == null && f.ServiceCategoryId == null,
+            cancellationToken);
         return faqs.OrderBy(f => f.DisplayOrder).Select(f => new FaqItemDto
         {
             Id = f.Id,
@@ -353,6 +515,15 @@ public class PublicPortalService : IPublicPortalService
 
         await _unitOfWork.ContactMessages.AddAsync(msg, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _notifications.SendContactMessageNotificationToCoordinatorAsync(msg, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Əlaqə mesajı bildirişi göndərilərkən xəta baş verdi: {MessageId}", msg.Id);
+        }
 
         return "Mesajınız qəbul edildi. Tezliklə əlaqə saxlayacağıq.";
     }
@@ -400,25 +571,213 @@ public class PublicPortalService : IPublicPortalService
         return "Rəyiniz uğurla əlavə edildi. Təşəkkür edirik!";
     }
 
-    private static CategoryDto MapCategoryToDto(ServiceCategory cat, string? lang)
+    private static CategoryDto MapCategoryToDto(ServiceCategory cat, string? lang, bool headerOnly = false)
     {
         return new CategoryDto
         {
             Id = cat.Id,
+            ParentId = cat.ParentId,
             Slug = cat.Slug,
             Title = LocalizedText.Resolve(cat.TitleAz, cat.TitleEn, cat.TitleRu, lang),
             Description = LocalizedText.Resolve(cat.DescriptionAz, cat.DescriptionEn, cat.DescriptionRu, lang),
             IconKey = cat.IconKey,
             DisplayOrder = cat.DisplayOrder,
-            SubCategories = cat.SubCategories.Where(sub => sub.IsActive).OrderBy(sub => sub.DisplayOrder).Select(sub => MapCategoryToDto(sub, lang)).ToList(),
-            Services = cat.Services.Where(s => s.IsActive).OrderBy(s => s.DisplayOrder).Select(s => new MedicalServiceSummaryDto
+            ShowInHeaderNav = cat.ShowInHeaderNav,
+            ShowOnHomePage = cat.ShowOnHomePage,
+            MetaTitle = LocalizedText.Resolve(cat.MetaTitleAz, cat.MetaTitleEn, cat.MetaTitleRu, lang),
+            MetaDescription = LocalizedText.Resolve(cat.MetaDescriptionAz, cat.MetaDescriptionEn, cat.MetaDescriptionRu, lang),
+            SubCategories = cat.SubCategories
+                .Where(sub => sub.IsActive && (!headerOnly || sub.ShowInHeaderNav))
+                .OrderBy(sub => sub.DisplayOrder)
+                .Select(sub => MapCategoryToDto(sub, lang, headerOnly))
+                .ToList(),
+            Services = cat.Services
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.DisplayOrder)
+                .Select(s => MapServiceSummaryToDto(s, lang))
+                .ToList()
+        };
+    }
+
+    private static CategoryDetailDto MapCategoryDetailToDto(ServiceCategory cat, string? lang)
+    {
+        var allServices = cat.Services.Where(s => s.IsActive)
+            .Concat(cat.SubCategories.Where(sub => sub.IsActive).SelectMany(sub => sub.Services.Where(s => s.IsActive)))
+            .ToList();
+
+        var uniqueClinics = allServices
+            .SelectMany(s => s.ClinicServices.Where(cs => cs.IsActive && cs.Clinic != null && cs.Clinic.IsActive))
+            .Select(cs => cs.Clinic)
+            .GroupBy(c => c.Id)
+            .Select(g => g.First())
+            .OrderBy(c => c.DisplayOrder)
+            .Select(c => new ClinicSummaryDto
             {
-                Id = s.Id,
-                Slug = s.Slug,
-                Title = LocalizedText.Resolve(s.TitleAz, s.TitleEn, s.TitleRu, lang),
-                DurationText = s.DurationText,
-                IsMostSearched = s.IsMostSearched
-            }).ToList()
+                Id = c.Id,
+                Name = c.Name,
+                Slug = c.Slug,
+                Description = LocalizedText.Resolve(c.DescriptionAz, c.DescriptionEn, c.DescriptionRu, lang),
+                LogoUrl = c.LogoUrl,
+                CoverUrl = c.CoverUrl,
+                City = c.City,
+                Phone = c.Phone,
+                Email = c.Email
+            })
+            .ToList();
+
+        var uniqueDoctors = allServices
+            .SelectMany(s => s.DoctorServices)
+            .Where(dm => dm.Doctor != null && dm.Doctor.IsActive && dm.Doctor.Clinic != null && dm.Doctor.Clinic.IsActive)
+            .Select(dm => dm.Doctor)
+            .GroupBy(d => d.Id)
+            .Select(g => g.First())
+            .OrderBy(d => d.DisplayOrder)
+            .Select(d => MapDoctorToDto(d, lang))
+            .ToList();
+
+        var relatedReviews = allServices
+            .SelectMany(s => s.Reviews.Where(r => r.IsPublished))
+            .GroupBy(r => r.Id)
+            .Select(g => g.First())
+            .OrderByDescending(r => r.CreatedAtUtc)
+            .Select(MapReviewToDto)
+            .ToList();
+
+        return new CategoryDetailDto
+        {
+            Id = cat.Id,
+            ParentId = cat.ParentId,
+            ParentCategorySlug = cat.Parent?.Slug,
+            ParentCategoryTitle = cat.Parent != null
+                ? LocalizedText.Resolve(cat.Parent.TitleAz, cat.Parent.TitleEn, cat.Parent.TitleRu, lang)
+                : null,
+            Slug = cat.Slug,
+            Title = LocalizedText.Resolve(cat.TitleAz, cat.TitleEn, cat.TitleRu, lang),
+            Description = LocalizedText.Resolve(cat.DescriptionAz, cat.DescriptionEn, cat.DescriptionRu, lang),
+            IconKey = cat.IconKey,
+            DisplayOrder = cat.DisplayOrder,
+            ShowInHeaderNav = cat.ShowInHeaderNav,
+            ShowOnHomePage = cat.ShowOnHomePage,
+            MetaTitle = LocalizedText.Resolve(cat.MetaTitleAz, cat.MetaTitleEn, cat.MetaTitleRu, lang),
+            MetaDescription = LocalizedText.Resolve(cat.MetaDescriptionAz, cat.MetaDescriptionEn, cat.MetaDescriptionRu, lang),
+            SubCategories = cat.SubCategories
+                .Where(sub => sub.IsActive)
+                .OrderBy(sub => sub.DisplayOrder)
+                .Select(sub => MapCategoryToDto(sub, lang))
+                .ToList(),
+            Services = cat.Services
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.DisplayOrder)
+                .Select(s => MapServiceSummaryToDto(s, lang))
+                .ToList(),
+            Clinics = uniqueClinics,
+            Doctors = uniqueDoctors,
+            Reviews = relatedReviews
+        };
+    }
+
+    private static MedicalServiceSummaryDto MapServiceSummaryToDto(MedicalService s, string? lang)
+    {
+        var minPrice = s.ClinicServices
+            .Where(cs => cs.IsActive)
+            .OrderBy(cs => cs.PriceFrom)
+            .FirstOrDefault();
+
+        return new MedicalServiceSummaryDto
+        {
+            Id = s.Id,
+            Slug = s.Slug,
+            Title = LocalizedText.Resolve(s.TitleAz, s.TitleEn, s.TitleRu, lang),
+            DurationText = s.DurationText,
+            IsMostSearched = s.IsMostSearched,
+            StartingPrice = minPrice?.PriceFrom,
+            Currency = minPrice?.Currency ?? "EUR"
+        };
+    }
+
+    private static DoctorDto MapDoctorToDto(Doctor d, string? lang)
+    {
+        return new DoctorDto
+        {
+            Id = d.Id,
+            ClinicId = d.ClinicId,
+            ClinicName = d.Clinic?.Name ?? string.Empty,
+            FullName = d.FullName,
+            Title = LocalizedText.Resolve(d.TitleAz, d.TitleEn, d.TitleRu, lang),
+            Specialization = LocalizedText.Resolve(d.SpecializationAz, d.SpecializationEn, d.SpecializationRu, lang),
+            Bio = LocalizedText.Resolve(d.BioAz, d.BioEn, d.BioRu, lang),
+            ExperienceYears = d.ExperienceYears,
+            PhotoUrl = d.PhotoUrl
+        };
+    }
+
+    private static ReviewDto MapReviewToDto(Review r)
+    {
+        return new ReviewDto
+        {
+            Id = r.Id,
+            ClinicId = r.ClinicId,
+            ClinicName = r.Clinic?.Name,
+            DoctorId = r.DoctorId,
+            DoctorName = r.Doctor?.FullName,
+            AuthorName = r.AuthorName,
+            AuthorCountry = r.AuthorCountry,
+            Rating = r.Rating,
+            Comment = r.Comment,
+            Source = r.Source,
+            IsVerifiedPatient = r.IsVerifiedPatient,
+            CreatedAtUtc = r.CreatedAtUtc
+        };
+    }
+
+    private static CmsPageDto MapCmsPageToDto(CmsPage page, string? lang)
+    {
+        return new CmsPageDto
+        {
+            Slug = page.Slug,
+            ParentSlug = page.ParentSlug,
+            PageType = page.PageType,
+            Title = LocalizedText.Resolve(page.TitleAz, page.TitleEn, page.TitleRu, lang),
+            Heading = LocalizedText.Resolve(page.HeadingAz, page.HeadingEn, page.HeadingRu, lang),
+            Subtitle = LocalizedText.Resolve(page.SubtitleAz, page.SubtitleEn, page.SubtitleRu, lang),
+            Content = LocalizedText.Resolve(page.ContentAz, page.ContentEn, page.ContentRu, lang),
+            MissionTitle = LocalizedText.Resolve(page.MissionTitleAz, page.MissionTitleEn, page.MissionTitleRu, lang),
+            MissionText = LocalizedText.Resolve(page.MissionTextAz, page.MissionTextEn, page.MissionTextRu, lang),
+            HeroImageUrl = page.HeroImageUrl,
+            ShowInMenu = page.ShowInMenu,
+            DisplayOrder = page.DisplayOrder
+        };
+    }
+
+    private static TeamMemberDto MapTeamMemberToDto(TeamMember t, string? lang)
+    {
+        return new TeamMemberDto
+        {
+            Id = t.Id,
+            FullName = t.FullName,
+            Role = LocalizedText.Resolve(t.RoleAz, t.RoleEn, t.RoleRu, lang),
+            Bio = LocalizedText.Resolve(t.BioAz, t.BioEn, t.BioRu, lang),
+            Quote = LocalizedText.Resolve(t.QuoteAz, t.QuoteEn, t.QuoteRu, lang),
+            Email = t.Email,
+            Phone = t.Phone,
+            WhatsAppUrl = t.WhatsAppUrl,
+            PhotoUrl = t.PhotoUrl,
+            IsPrimaryCoordinator = t.IsPrimaryCoordinator,
+            DisplayOrder = t.DisplayOrder
+        };
+    }
+
+    private static HowItWorksStepDto MapHowItWorksStepToDto(HowItWorksStep s, string? lang)
+    {
+        return new HowItWorksStepDto
+        {
+            Id = s.Id,
+            StepNumber = s.StepNumber,
+            Title = LocalizedText.Resolve(s.TitleAz, s.TitleEn, s.TitleRu, lang),
+            Content = LocalizedText.Resolve(s.ContentAz, s.ContentEn, s.ContentRu, lang),
+            CtaLabel = LocalizedText.Resolve(s.CtaLabelAz, s.CtaLabelEn, s.CtaLabelRu, lang),
+            CtaUrl = s.CtaUrl,
+            DisplayOrder = s.DisplayOrder
         };
     }
 

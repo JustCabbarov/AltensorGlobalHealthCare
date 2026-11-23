@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AltensorGlobalHealthCare.Application.Common;
 using AltensorGlobalHealthCare.Application.DTOs.Catalog;
@@ -25,21 +25,38 @@ public class PublicController : ControllerBase
     /// Bütün tibbi kateqoriyalar və alt-kateqoriyaların iyerarxik ağacı
     /// </summary>
     [HttpGet("categories")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<CategoryDto>>>> GetCategories(CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<CategoryDto>>>> GetCategories(
+        [FromQuery] bool headerOnly = false,
+        [FromQuery] bool homeOnly = false,
+        CancellationToken cancellationToken = default)
     {
-        var result = await _publicService.GetCategoriesAsync(CurrentLang, cancellationToken);
+        var result = await _publicService.GetCategoriesAsync(CurrentLang, headerOnly, homeOnly, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<CategoryDto>>.Ok(result));
     }
 
     /// <summary>
-    /// Slug üzrə konkret kateqoriya və onun xidmətləri
+    /// Slug üzrə konkret kateqoriya, alt-kateqoriyalar, xidmətlər və əlaqəli klinika/həkim/rəylər
     /// </summary>
-    [HttpGet("categories/{slug}")]
-    public async Task<ActionResult<ApiResponse<CategoryDto>>> GetCategoryBySlug(string slug, CancellationToken cancellationToken)
+    [HttpGet("categories/{categorySlug}")]
+    public async Task<ActionResult<ApiResponse<CategoryDetailDto>>> GetCategoryBySlug(string categorySlug, CancellationToken cancellationToken)
     {
-        var result = await _publicService.GetCategoryBySlugAsync(slug, CurrentLang, cancellationToken);
-        if (result == null) return NotFound(ApiResponse<CategoryDto>.Fail("Kateqoriya tapılmadı.", "CATEGORY_NOT_FOUND"));
-        return Ok(ApiResponse<CategoryDto>.Ok(result));
+        var result = await _publicService.GetCategoryBySlugAsync(categorySlug, CurrentLang, cancellationToken);
+        if (result == null) return NotFound(ApiResponse<CategoryDetailDto>.Fail("Kateqoriya tapılmadı.", "CATEGORY_NOT_FOUND"));
+        return Ok(ApiResponse<CategoryDetailDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Valideyn kateqoriya və alt-kateqoriya slug-ı üzrə alt-kateqoriya detalları
+    /// </summary>
+    [HttpGet("categories/{categorySlug}/{subSlug}")]
+    public async Task<ActionResult<ApiResponse<CategoryDetailDto>>> GetSubCategoryBySlug(
+        string categorySlug,
+        string subSlug,
+        CancellationToken cancellationToken)
+    {
+        var result = await _publicService.GetSubCategoryBySlugAsync(categorySlug, subSlug, CurrentLang, cancellationToken);
+        if (result == null) return NotFound(ApiResponse<CategoryDetailDto>.Fail("Alt-kateqoriya tapılmadı.", "CATEGORY_NOT_FOUND"));
+        return Ok(ApiResponse<CategoryDetailDto>.Ok(result));
     }
 
     /// <summary>
@@ -149,6 +166,38 @@ public class PublicController : ControllerBase
     {
         var result = await _publicService.SearchAsync(q, CurrentLang, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<MedicalServiceSummaryDto>>.Ok(result));
+    }
+
+    /// <summary>
+    /// Haqqımızda səhifəsinin tam dinamik məzmunu (səhifə, alt-səhifələr, dəyərlər, komanda, addımlar)
+    /// </summary>
+    [HttpGet("about-us")]
+    public async Task<ActionResult<ApiResponse<AboutUsDto>>> GetAboutUs(CancellationToken cancellationToken)
+    {
+        var result = await _publicService.GetAboutUsAsync(CurrentLang, cancellationToken);
+        return Ok(ApiResponse<AboutUsDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Necə işləyir səhifəsi və addımları
+    /// </summary>
+    [HttpGet("how-it-works")]
+    public async Task<ActionResult<ApiResponse<HowItWorksDto>>> GetHowItWorks(CancellationToken cancellationToken)
+    {
+        var result = await _publicService.GetHowItWorksAsync(CurrentLang, cancellationToken);
+        return Ok(ApiResponse<HowItWorksDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Menyu üçün dinamik CMS səhifələrinin siyahısı (məsələn: ?parentSlug=about-us)
+    /// </summary>
+    [HttpGet("pages")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<CmsPageMenuItemDto>>>> GetCmsPagesMenu(
+        [FromQuery] string? parentSlug,
+        CancellationToken cancellationToken)
+    {
+        var result = await _publicService.GetCmsPagesMenuAsync(parentSlug, CurrentLang, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<CmsPageMenuItemDto>>.Ok(result));
     }
 
     /// <summary>

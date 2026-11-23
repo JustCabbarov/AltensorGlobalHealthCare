@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Text.Json;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -94,6 +94,36 @@ public class NotificationDispatcher : INotificationDispatcher
                                $"*Pasient:* {inquiry.Patient?.FullName}\n" +
                                $"*Simptomlar:* {inquiry.Symptoms}\n" +
                                $"*Status:* {inquiry.Status}";
+            await SendTelegramMessageAsync(telegramBotToken, telegramChatId, telegramText, cancellationToken);
+        }
+    }
+
+    public async Task SendContactMessageNotificationToCoordinatorAsync(ContactMessage contactMessage, CancellationToken cancellationToken = default)
+    {
+        var coordinatorEmail = _configuration["Notifications:CoordinatorEmail"] ?? "hospitality@altensorglobalhealthcare.com";
+        var subject = $"[Əlaqə Forması] {contactMessage.Subject ?? "Yeni mesaj"} — {contactMessage.Name}";
+        var body = $"""
+            <div style="font-family: Arial, sans-serif;">
+                <h3>Əlaqə formasından yeni mesaj daxil oldu</h3>
+                <p><strong>Ad:</strong> {contactMessage.Name}</p>
+                <p><strong>E-poçt:</strong> {contactMessage.Email}</p>
+                <p><strong>Telefon:</strong> {contactMessage.Phone ?? "-"}</p>
+                <p><strong>Mövzu:</strong> {contactMessage.Subject ?? "-"}</p>
+                <p><strong>Mesaj:</strong><br/>{contactMessage.Message}</p>
+            </div>
+            """;
+
+        await SendEmailAsync(coordinatorEmail, "Baş Koordinator", subject, body, cancellationToken);
+
+        var telegramBotToken = _configuration["Notifications:Telegram:BotToken"];
+        var telegramChatId = _configuration["Notifications:Telegram:ChatId"];
+        if (!string.IsNullOrWhiteSpace(telegramBotToken) && !string.IsNullOrWhiteSpace(telegramChatId))
+        {
+            var telegramText = $"📩 *Yeni Əlaqə Mesajı!*\n\n" +
+                               $"*Ad:* {contactMessage.Name}\n" +
+                               $"*E-poçt:* {contactMessage.Email}\n" +
+                               $"*Mövzu:* {contactMessage.Subject ?? "-"}\n" +
+                               $"*Mesaj:* {contactMessage.Message}";
             await SendTelegramMessageAsync(telegramBotToken, telegramChatId, telegramText, cancellationToken);
         }
     }
